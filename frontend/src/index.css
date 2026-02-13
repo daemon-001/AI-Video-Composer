@@ -4,7 +4,14 @@
 
 @layer base {
   body {
-    @apply bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50 min-h-screen;
+    @apply bg-gray-50 min-h-screen overflow-hidden;
+    margin: 0;
+    padding: 0;
+  }
+  
+  html, body, #root {
+    height: 100%;
+    overflow: hidden;
   }
 }
 
@@ -42,11 +49,20 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-gray-100 rounded-full;
+  @apply bg-gray-800 rounded;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 rounded-full hover:bg-gray-400;
+  @apply bg-gray-600 rounded hover:bg-gray-500;
+}
+
+/* Dark scrollbar for light areas */
+.light-scrollbar::-webkit-scrollbar-track {
+  @apply bg-gray-100 rounded;
+}
+
+.light-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded hover:bg-gray-400;
 }
 
 /* Loading animation */
@@ -77,4 +93,25 @@
 
 .pulse-dot {
   animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* Timeline animations */
+@keyframes slide-in {
+  from {
+    transform: translateX(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.clip-animation {
+  animation: slide-in 0.2s ease-out;
+}
+
+/* Playhead animation */
+.playhead-moving {
+  transition: left 0.1s linear;
 }
