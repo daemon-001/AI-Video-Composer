@@ -10,18 +10,17 @@ interface MediaAsset {
 }
 
 interface PreviewCanvasProps {
-  currentFrame?: string;
   videoUrl?: string | null;
   isPlaying: boolean;
   currentTime: number;
   onTimeUpdate?: (time: number) => void;
-  onProcess?: () => void;
+  onProcess?: (prompt: string) => void;
   isProcessing?: boolean;
   assets?: MediaAsset[];
+  onRemoveAsset?: (assetId: string) => void;
 }
 
 export const PreviewCanvas = ({
-  currentFrame,
   videoUrl,
   isPlaying,
   currentTime,
@@ -29,6 +28,7 @@ export const PreviewCanvas = ({
   onProcess,
   isProcessing = false,
   assets = [],
+  onRemoveAsset,
 }: PreviewCanvasProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [showControls, setShowControls] = useState(false);
@@ -58,7 +58,7 @@ export const PreviewCanvas = ({
 
   const handleSendPrompt = () => {
     if (prompt.trim() && onProcess) {
-      onProcess();
+      onProcess(prompt);
       // Optionally clear prompt after sending
       // setPrompt('');
     }
@@ -71,19 +71,30 @@ export const PreviewCanvas = ({
     }
   };
 
+  const handleDownload = () => {
+    if (videoUrl) {
+      const link = document.createElement('a');
+      link.href = videoUrl;
+      link.download = 'output.mp4';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   return (
     <div className="flex-1 bg-gray-100 flex flex-col">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium text-gray-900">Project</h3>
+          <h3 className="text-sm font-medium text-gray-900">Create</h3>
         </div>
 
         <div className="flex items-center gap-2">
           {onProcess && (
             <button
-              onClick={onProcess}
-              disabled={isProcessing}
+              onClick={() => onProcess(prompt)}
+              disabled={isProcessing || !prompt.trim()}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Play className="w-4 h-4" />
@@ -106,15 +117,10 @@ export const PreviewCanvas = ({
       <div className="flex-1 flex overflow-hidden">
         {/* Left Section - File Grid and Prompt */}
         <div className="w-1/2 border-r border-gray-200 bg-white flex flex-col">
-          {/* Create Title */}
-          <div className="px-4 py-3 border-b border-gray-200">
-            <h3 className="text-sm font-semibold text-gray-900">Create</h3>
-          </div>
-
           {/* File Grid */}
           <div className="flex-1 overflow-y-auto p-4">
-            <div className="grid grid-cols-3 gap-2">
-              {assets.slice(0, 6).map((asset) => (
+            <div className="grid grid-cols-4 gap-2">
+              {assets.map((asset) => (
                 <div
                   key={asset.id}
                   className="group relative bg-white rounded-md overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
@@ -124,8 +130,11 @@ export const PreviewCanvas = ({
                     className="absolute top-1 right-1 z-10 bg-red-500 hover:bg-red-600 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      // Handle remove action here
+                      if (onRemoveAsset) {
+                        onRemoveAsset(asset.id);
+                      }
                     }}
+                    title="Remove from Create grid"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -156,7 +165,7 @@ export const PreviewCanvas = ({
                 </div>
               ))}
               {assets.length === 0 && (
-                <div className="col-span-3 text-center py-8 text-gray-400">
+                <div className="col-span-4 text-center py-8 text-gray-400">
                   <p className="text-sm">No files selected</p>
                   <p className="text-xs mt-1">Add files from the sidebar</p>
                 </div>
@@ -199,19 +208,14 @@ export const PreviewCanvas = ({
                 src={videoUrl}
                 className="w-full h-full object-contain bg-gray-900"
                 onTimeUpdate={handleTimeUpdate}
-              />
-            ) : currentFrame ? (
-              <img
-                src={currentFrame}
-                alt="Preview"
-                className="w-full h-full object-contain"
+                controls
               />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-gray-400 bg-gray-50">
                 <div className="text-center">
                   <div className="text-6xl mb-4">🎬</div>
-                  <p className="text-lg font-medium text-gray-600">No media selected</p>
-                  <p className="text-sm text-gray-400 mt-2">Add media from the sidebar to start editing</p>
+                  <p className="text-lg font-medium text-gray-600">No video loaded</p>
+                  <p className="text-sm text-gray-400 mt-2">Add files and describe what you want to create</p>
                 </div>
               </div>
             )}
@@ -219,7 +223,11 @@ export const PreviewCanvas = ({
             {/* Overlay Controls */}
             {showControls && videoUrl && (
               <div className="absolute bottom-4 right-4 flex gap-2 opacity-0 hover:opacity-100 transition-opacity">
-                <button className="p-2 bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-700 rounded-lg shadow transition-colors">
+                <button 
+                  onClick={handleDownload}
+                  className="p-2 bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-700 rounded-lg shadow transition-colors"
+                  title="Download video"
+                >
                   <Download className="w-4 h-4" />
                 </button>
               </div>

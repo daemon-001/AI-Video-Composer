@@ -13,11 +13,12 @@ interface MediaAsset {
 interface EditorSidebarProps {
   assets: MediaAsset[];
   onAssetsChange: (assets: MediaAsset[]) => void;
+  onAddAssetToCreate?: (asset: MediaAsset) => void;
 }
 
 type MediaFilter = 'all' | 'video' | 'audio' | 'image';
 
-export const EditorSidebar = ({ assets, onAssetsChange }: EditorSidebarProps) => {
+export const EditorSidebar = ({ assets, onAssetsChange, onAddAssetToCreate }: EditorSidebarProps) => {
   const [activeFilter, setActiveFilter] = useState<MediaFilter>('all');
   const [projectName, setProjectName] = useState('Project');
   const [isRenamingProject, setIsRenamingProject] = useState(false);
@@ -227,26 +228,31 @@ export const EditorSidebar = ({ assets, onAssetsChange }: EditorSidebarProps) =>
                   )}
                   
                   {/* File Type Icon Badge */}
-                  <div className="absolute bottom-1 left-1 bg-white/20 backdrop-blur-md border border-white/30 rounded-sm px-1.5 py-1 flex items-center gap-1">
+                  <div className="absolute bottom-1 left-1 bg-white/20 backdrop-blur-md border border-white/30 rounded-sm px-1.5 py-1 flex items-center gap-1 z-10">
                     {asset.type === 'video' && <Video className="w-3 h-3 text-white" />}
                     {asset.type === 'audio' && <Music className="w-3 h-3 text-white" />}
                     {asset.type === 'image' && <ImageIcon className="w-3 h-3 text-white" />}
                   </div>
                   
-                  {/* Plus Icon - Permanent */}
-                  <button
-                    className="absolute bottom-1 right-1 bg-blue-500 hover:bg-blue-600 text-white rounded p-1 shadow-sm transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // Handle add/select action here
-                    }}
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
+                  {/* Hover Overlay with Centered Plus Icon */}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <button
+                      className="bg-blue-500 hover:bg-blue-600 text-white rounded-full p-3 shadow-lg transition-all transform hover:scale-110"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onAddAssetToCreate) {
+                          onAddAssetToCreate(asset);
+                        }
+                      }}
+                      title="Add to Create grid"
+                    >
+                      <Plus className="w-6 h-6" />
+                    </button>
+                  </div>
                   
                   <button
                     onClick={() => removeAsset(asset.id)}
-                    className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                    className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10"
                   >
                     <X className="w-3 h-3" />
                   </button>
