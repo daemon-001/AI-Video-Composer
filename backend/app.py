@@ -1,6 +1,7 @@
 """
-FFmpeg AI Composer - FastAPI Backend with Gemini AI
-A modern backend service for generating FFmpeg commands using Google's Gemini API.
+FFmpeg AI Composer - FastAPI Backend with Groq AI
+A modern backend service for generating FFmpeg commands using Groq's Llama models (FREE).
+Get your API key from: https://console.groq.com/keys
 """
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
@@ -8,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
-import google.generativeai as genai
 import os
 import subprocess
 import tempfile
@@ -23,6 +23,9 @@ import uuid
 import traceback
 import logging
 import shlex
+import time
+import re
+from openai import OpenAI
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -31,12 +34,25 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-# Configure Gemini AI
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY not found in environment variables. Please set it in .env file.")
+# Configure Groq API (FREE tier with generous limits)
+# Get your API key from: https://console.groq.com/keys
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if not GROQ_API_KEY:
+    raise ValueError(
+        "GROQ_API_KEY not found in environment variables.\n"
+        "Please add it to your .env file.\n"
+        "Get a free API key from: https://console.groq.com/keys"
+    )
 
-genai.configure(api_key=GEMINI_API_KEY)
+# Using Llama 3.3 70B - fastest and most capable free model
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
+client = OpenAI(
+    base_url="https://api.groq.com/openai/v1",
+    api_key=GROQ_API_KEY,
+)
+
+logger.info(f"✓ Using Groq API with model: {GROQ_MODEL}")
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -170,7 +186,7 @@ async def generate_ffmpeg_command(
     previous_error: Optional[str] = None,
     previous_command: Optional[str] = None
 ) -> tuple[str, str]:
-    """Generate FFmpeg command using Gemini AI"""
+    """Generate FFmpeg command using OpenAI-compatible API"""
     
     files_table = create_files_info_table(files_info)
     
@@ -196,15 +212,22 @@ ffmpeg -loop 1 -t 3 -i img1.jpg -loop 1 -t 3 -i img2.jpg -filter_complex "[0]sca
 - Vertical/portrait/TikTok: use 1080x1920
 - Always scale+pad to normalize dimensions
 
-## AUDIO WAVEFORM PATTERN
+## AUDIO WAVEFORM
+For full-width waveform visualization (waveform width = video width):
 ```bash
-ffmpeg -i audio.mp3 -filter_complex "[0:a]showwaves=s=1920x1080:mode=line:rate=25,format=yuv420p[v]" -map "[v]" -map 0:a -c:v libx264 -c:a aac output.mp4
+ffmpeg -i audio.mp3 -i bg.png -filter_complex "[0:a]showwaves=s=1920x200:mode=line:colors=white[wave];[1]scale=1920:1080[bg];[bg][wave]overlay=0:(H-h)/2" -c:v libx264 -c:a aac output.mp4
 ```
+CRITICAL:
+- showwaves size uses 'x' separator: s=WIDTHxHEIGHT (NOT s=WIDTH:HEIGHT)
+- For full-width: set waveform width = video width (e.g., s=1920x200 for 1920px wide video)
+- overlay=0:(H-h)/2 positions at x=0 (full width) and centers vertically
 
-## ERROR HANDLING
-- If dimensions mismatch: use scale+pad approach
-- If filter syntax errors: simplify and check parentheses
-- For showwaves: use 's=1920x1080' format (NOT 's=1920:1080')"""
+## WITH BACKGROUND MUSIC
+Add audio to video/slideshow:
+```bash
+ffmpeg ... -i music.mp3 -map "[vout]" -map N:a -shortest -c:a aac output.mp4
+```
+Where N is the audio input index."""
 
     user_message = f"""## AVAILABLE ASSETS
 
@@ -216,7 +239,9 @@ ffmpeg -i audio.mp3 -filter_complex "[0:a]showwaves=s=1920x1080:mode=line:rate=2
 ## REQUIREMENTS
 - Output format: MP4 video saved as "output.mp4"
 - Generate a single, complete FFmpeg command
-- Command must work with the exact filenames listed above"""
+- Command must work with the exact filenames listed above
+
+Think briefly about the approach, then output the FFmpeg command in a ```bash code block."""
 
     if previous_error and previous_command:
         user_message += f"""
@@ -229,42 +254,99 @@ PREVIOUS COMMAND (FAILED):
 ERROR MESSAGE:
 {previous_error}
 
-Please analyze the error and generate a corrected command that addresses the specific issue."""
+Please analyze the error and generate a corrected command that addresses the specific issue.
+
+COMMON ERROR FIXES:
+- If you see "do not match the corresponding output link" → Images have different dimensions, use scale+pad approach
+- If you see "Padded dimensions cannot be smaller than input dimensions" → Fix pad calculation or use standard resolution (1920x1080 or 1080x1920)
+- If you see "Failed to configure input pad" → Check scale and pad syntax, ensure proper filter chain
+- If you see "Invalid argument" in filters → Simplify filter_complex syntax and check parentheses
+- If you see "No option name near" with showwaves → Use 'x' for size: s=1920x200 (NOT s=1920:200)
+
+FORMAT DETECTION KEYWORDS:
+- "vertical", "portrait", "9:16", "TikTok", "Instagram Stories", "phone" → Use 1080x1920
+- "horizontal", "landscape", "16:9", "YouTube", "TV" → Use 1920x1080 (default)
+- "square", "1:1", "Instagram post" → Use 1080x1080"""
 
     user_message += "\n\nYOUR RESPONSE:"
     
-    # Configure Gemini model with parameters
-    generation_config = {
-        "temperature": temperature,
-        "top_p": top_p,
-        "top_k": 40,
-        "max_output_tokens": 2048,
-    }
+    # Build messages array
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message}
+    ]
     
-    model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
-        generation_config=generation_config,
-    )
+    # Call Groq API
+    try:
+        logger.info("Calling Groq API...")
+        completion = await asyncio.to_thread(
+            client.chat.completions.create,
+            model=GROQ_MODEL,
+            messages=messages,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=2048,
+        )
+        
+        full_response = completion.choices[0].message.content
+        logger.info(f"AI response length: {len(full_response)} characters")
+        logger.info(f"AI response preview: {full_response[:500]}...")
+        
+    except Exception as e:
+        logger.error(f"Error calling AI API: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error calling AI API: {str(e)}"
+        )
     
-    # Generate response
-    chat = model.start_chat(history=[])
-    response = await asyncio.to_thread(
-        chat.send_message,
-        f"{system_prompt}\n\n{user_message}"
-    )
-    
-    full_response = response.text
-    
-    # Extract command from code block
+    # Extract command from code block - using the robust extraction from original project
     command = None
-    if "```bash" in full_response:
-        start = full_response.find("```bash") + 7
-        end = full_response.find("```", start)
-        command = full_response[start:end].strip()
-    elif "```" in full_response:
-        start = full_response.find("```") + 3
-        end = full_response.find("```", start)
-        command = full_response[start:end].strip()
+    
+    # Try multiple code block patterns
+    code_patterns = [
+        r"```(?:bash|sh|shell)?\n(.*?)\n```",  # Standard code blocks
+        r"```\n(.*?)\n```",  # Plain code blocks
+        r"`([^`]*ffmpeg[^`]*)`",  # Inline code with ffmpeg
+    ]
+    
+    for pattern in code_patterns:
+        matches = re.findall(pattern, full_response, re.DOTALL | re.IGNORECASE)
+        for match in matches:
+            if "ffmpeg" in match.lower():
+                command = match.strip()
+                break
+        if command:
+            break
+    
+    # If no code block found, try to find ffmpeg lines directly
+    if not command:
+        ffmpeg_lines = [
+            line.strip()
+            for line in full_response.split("\n")
+            if line.strip().lower().startswith("ffmpeg")
+        ]
+        if ffmpeg_lines:
+            command = ffmpeg_lines[0]
+    
+    # Last resort: look for any line containing ffmpeg
+    if not command:
+        for line in full_response.split("\n"):
+            line = line.strip()
+            if "ffmpeg" in line.lower() and len(line) > 10:
+                command = line
+                break
+    
+    # Handle multi-line commands (remove line continuations)
+    if command:
+        logger.info(f"Extracted command: {command[:200]}...")
+        # Remove backslash line continuations and join lines
+        command = command.replace('\\\n', ' ').replace('\\\r\n', ' ')
+        # Replace multiple spaces with single space
+        command = ' '.join(command.split())
+        logger.info(f"Processed command length: {len(command)} characters")
+    else:
+        logger.error("Failed to extract command from AI response")
+        logger.error(f"Full response: {full_response}")
     
     return command, full_response
 
@@ -273,10 +355,13 @@ def execute_ffmpeg_command_sync(command: str, work_dir: Path) -> tuple[bool, str
     """Execute FFmpeg command synchronously and return success status and output"""
     try:
         logger.info(f"Executing FFmpeg in directory: {work_dir}")
-        logger.info(f"Command: {command}")
+        logger.info(f"Command length: {len(command)} characters")
+        logger.info(f"Command: {command[:200]}..." if len(command) > 200 else f"Command: {command}")
         
         # Parse command into arguments (POSIX mode for proper quote handling)
         args = shlex.split(command, posix=True)
+        
+        logger.info(f"Parsed {len(args)} arguments")
         
         if args[0] != "ffmpeg":
             return False, "Command must start with 'ffmpeg'"
@@ -325,12 +410,13 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     ffmpeg_available = check_ffmpeg_installed()
-    gemini_configured = GEMINI_API_KEY is not None
+    groq_configured = GROQ_API_KEY is not None
     
     return {
-        "status": "healthy" if ffmpeg_available and gemini_configured else "unhealthy",
+        "status": "healthy" if ffmpeg_available and groq_configured else "unhealthy",
         "ffmpeg_installed": ffmpeg_available,
-        "gemini_configured": gemini_configured
+        "groq_configured": groq_configured,
+        "model": GROQ_MODEL
     }
 
 
@@ -405,6 +491,12 @@ async def process_video(
         
         while retry_count < max_retries:
             try:
+                # Add small delay between retries to respect rate limits
+                if retry_count > 0:
+                    delay = 2 * retry_count  # Progressive delay
+                    logger.info(f"Waiting {delay} seconds before retry...")
+                    await asyncio.sleep(delay)
+                
                 logger.info(f"Generating command (attempt {retry_count + 1}/{max_retries})")
                 command, full_response = await generate_ffmpeg_command(
                     prompt=prompt,
@@ -422,6 +514,10 @@ async def process_video(
                     )
                 
                 logger.info(f"Generated command: {command}")
+                
+                # Log command for debugging
+                logger.info(f"Full command length: {len(command)} characters")
+                logger.debug(f"AI full response: {full_response}")
                 
                 # Execute command (run in thread pool to avoid blocking)
                 success, output = await asyncio.to_thread(

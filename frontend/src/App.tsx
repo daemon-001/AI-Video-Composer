@@ -16,7 +16,7 @@ function App() {
   const [assets, setAssets] = useState<MediaAsset[]>([]);
   const [selectedAssets, setSelectedAssets] = useState<MediaAsset[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [output, setOutput] = useState('💡 Ready to process your media');
+  const [output, setOutput] = useState('[READY] Ready to process your media');
   const [command, setCommand] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
@@ -34,20 +34,30 @@ function App() {
     setSelectedAssets(selectedAssets.filter(a => a.id !== assetId));
   };
 
+  // Helper function to add output with delay
+  const addOutputWithDelay = (message: string, delay: number = 1000): Promise<void> => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        setOutput((prev) => prev + message);
+        resolve();
+      }, delay);
+    });
+  };
+
   // Process video with backend API
   const handleProcess = async (prompt: string) => {
     if (selectedAssets.length === 0) {
-      setOutput('⚠️ Please add files to the Create grid first');
+      setOutput('[WARNING] Please add files to the Create grid first');
       return;
     }
 
     if (!prompt.trim()) {
-      setOutput('⚠️ Please enter a prompt describing what you want to create');
+      setOutput('[WARNING] Please enter a prompt describing what you want to create');
       return;
     }
 
     setIsProcessing(true);
-    setOutput('🤖 Starting FFmpeg processing...\n');
+    setOutput('[INFO] Starting FFmpeg processing...\n');
     setCommand(null);
     setVideoUrl(null);
 
@@ -55,9 +65,9 @@ function App() {
       // Extract files from selected assets
       const files = selectedAssets.map(asset => asset.file);
 
-      setOutput((prev) => prev + '✓ Uploading files...\n');
-      setOutput((prev) => prev + '✓ Analyzing media files...\n');
-      setOutput((prev) => prev + '✓ Generating FFmpeg command with AI...\n');
+      await addOutputWithDelay('[OK] Uploading files...\n');
+      await addOutputWithDelay('[OK] Analyzing media files...\n');
+      await addOutputWithDelay('[OK] Generating FFmpeg command with AI...\n');
 
       // Call backend API
       const response = await apiService.processVideo({
@@ -68,19 +78,19 @@ function App() {
       });
 
       setCommand(response.command);
-      setOutput((prev) => prev + `✓ Generated command\n`);
-      setOutput((prev) => prev + '✓ Processing video...\n');
+      await addOutputWithDelay('[OK] Generated command\n');
+      await addOutputWithDelay('[OK] Processing video...\n');
 
       // Create video URL from blob
       const videoBlob = new Blob([response.video], { type: 'video/mp4' });
       const url = URL.createObjectURL(videoBlob);
       setVideoUrl(url);
 
-      setOutput((prev) => prev + '✅ Video generated successfully!\n');
+      await addOutputWithDelay('[SUCCESS] Video generated successfully!\n');
     } catch (error: any) {
       console.error('Processing error:', error);
       const errorMsg = error.response?.data?.detail || error.message || 'Unknown error occurred';
-      setOutput((prev) => prev + `❌ Error: ${errorMsg}\n`);
+      setOutput((prev) => prev + `[ERROR] Error: ${errorMsg}\n`);
     } finally {
       setIsProcessing(false);
     }

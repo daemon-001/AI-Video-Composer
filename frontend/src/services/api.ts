@@ -43,7 +43,8 @@ export interface CommandResponse {
 export interface HealthResponse {
   status: string;
   ffmpeg_installed: boolean;
-  gemini_configured: boolean;
+  groq_configured: boolean;
+  model: string;
 }
 
 class APIService {

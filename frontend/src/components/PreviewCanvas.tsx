@@ -235,18 +235,6 @@ export const PreviewCanvas = ({
           </div>
         </div>
       </div>
-
-      {/* Bottom Info Bar */}
-      <div className="px-4 py-2 bg-white border-t border-gray-200 flex items-center justify-between text-sm text-gray-500">
-        <div>
-          {videoUrl ? 'Video loaded' : 'No video loaded'}
-        </div>
-        <div className="flex items-center gap-4">
-          <span>1920 × 1080</span>
-          <span>•</span>
-          <span>30 FPS</span>
-        </div>
-      </div>
     </div>
   );
 };

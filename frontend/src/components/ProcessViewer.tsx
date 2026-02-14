@@ -56,28 +56,45 @@ export const ProcessViewer = ({ output, command, isProcessing }: ProcessViewerPr
             {output ? (
               <div className="space-y-1">
                 {output.split('\n').map((line, idx) => (
-                  <div key={idx} className="flex items-start gap-2">
-                    {line.startsWith('❌') && (
+                  <div 
+                    key={idx} 
+                    className="flex items-start gap-2 animate-fade-in"
+                    style={{ animationDelay: `${idx * 50}ms` }}
+                  >
+                    {line.startsWith('[ERROR]') && (
                       <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
                     )}
-                    {line.startsWith('✓') && (
+                    {line.startsWith('[OK]') && (
                       <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
                     )}
-                    {line.startsWith('🤖') && (
+                    {line.startsWith('[SUCCESS]') && (
+                      <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                    )}
+                    {line.startsWith('[INFO]') && isProcessing && (
                       <Loader2 className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5 animate-spin" />
+                    )}
+                    {line.startsWith('[WARNING]') && (
+                      <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                    )}
+                    {line.startsWith('[READY]') && (
+                      <CheckCircle2 className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                     )}
                     <span
                       className={
-                        line.startsWith('❌') || line.includes('Error')
+                        line.startsWith('[ERROR]') || line.includes('Error')
                           ? 'text-red-500'
-                          : line.startsWith('✓')
+                          : line.startsWith('[OK]') || line.startsWith('[SUCCESS]')
                           ? 'text-green-600'
-                          : line.startsWith('🤖')
+                          : line.startsWith('[INFO]')
+                          ? 'text-blue-600'
+                          : line.startsWith('[WARNING]')
+                          ? 'text-yellow-600'
+                          : line.startsWith('[READY]')
                           ? 'text-blue-600'
                           : ''
                       }
                     >
-                      {line}
+                      {line.replace(/^\[(OK|SUCCESS|INFO|ERROR|WARNING|READY)\]\s*/, '')}
                     </span>
                   </div>
                 ))}
