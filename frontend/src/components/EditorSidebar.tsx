@@ -31,14 +31,79 @@ export const EditorSidebar = ({ assets, onAssetsChange, onAddAssetToCreate }: Ed
     return 'image';
   };
 
-  const onDrop = (acceptedFiles: File[]) => {
-    const newAssets: MediaAsset[] = acceptedFiles.map((file) => ({
-      id: Math.random().toString(36).substr(2, 9),
-      name: file.name,
-      type: getFileType(file),
-      thumbnail: URL.createObjectURL(file),
-      file,
-    }));
+  const generateVideoThumbnail = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      
+      video.onloadeddata = () => {
+        // Seek to 1 second or 10% of video duration, whichever is smaller
+        video.currentTime = Math.min(1, video.duration * 0.1);
+      };
+      
+      video.onseeked = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          const ctx = canvas.getContext('2d');
+          
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob((blob) => {
+              if (blob) {
+                resolve(URL.createObjectURL(blob));
+              } else {
+                reject(new Error('Failed to create thumbnail blob'));
+              }
+            }, 'image/jpeg', 0.8);
+          } else {
+            reject(new Error('Failed to get canvas context'));
+          }
+        } catch (error) {
+          reject(error);
+        } finally {
+          URL.revokeObjectURL(video.src);
+        }
+      };
+      
+      video.onerror = () => {
+        reject(new Error('Failed to load video'));
+        URL.revokeObjectURL(video.src);
+      };
+      
+      video.src = URL.createObjectURL(file);
+    });
+  };
+
+  const onDrop = async (acceptedFiles: File[]) => {
+    const newAssets: MediaAsset[] = [];
+    
+    for (const file of acceptedFiles) {
+      const type = getFileType(file);
+      let thumbnail = '';
+      
+      if (type === 'video') {
+        try {
+          thumbnail = await generateVideoThumbnail(file);
+        } catch (error) {
+          console.error('Failed to generate video thumbnail:', error);
+          thumbnail = ''; // Will show placeholder
+        }
+      } else {
+        thumbnail = URL.createObjectURL(file);
+      }
+      
+      newAssets.push({
+        id: Math.random().toString(36).substr(2, 9),
+        name: file.name,
+        type,
+        thumbnail,
+        file,
+      });
+    }
+    
     onAssetsChange([...assets, ...newAssets]);
   };
 
@@ -218,6 +283,10 @@ export const EditorSidebar = ({ assets, onAssetsChange, onAddAssetToCreate }: Ed
                   {asset.type === 'audio' ? (
                     <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-green-400 to-green-600">
                       <Music className="w-10 h-10 text-white" />
+                    </div>
+                  ) : asset.type === 'video' && !asset.thumbnail ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple-400 to-purple-600">
+                      <Video className="w-10 h-10 text-white" />
                     </div>
                   ) : (
                     <img

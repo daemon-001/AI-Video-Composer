@@ -118,8 +118,8 @@ export const PreviewCanvas = ({
         {/* Left Section - File Grid and Prompt */}
         <div className="w-1/2 border-r border-gray-200 bg-white flex flex-col">
           {/* File Grid */}
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="grid grid-cols-4 gap-2">
+          <div className="flex-1 overflow-y-auto p-4 min-h-0">
+            <div className="grid grid-cols-4 gap-2 auto-rows-min">
               {assets.map((asset) => (
                 <div
                   key={asset.id}
@@ -143,6 +143,10 @@ export const PreviewCanvas = ({
                     {asset.type === 'audio' ? (
                       <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-green-400 to-green-600">
                         <Music className="w-10 h-10 text-white" />
+                      </div>
+                    ) : asset.type === 'video' && !asset.thumbnail ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple-400 to-purple-600">
+                        <Video className="w-10 h-10 text-white" />
                       </div>
                     ) : (
                       <img
@@ -174,20 +178,21 @@ export const PreviewCanvas = ({
           </div>
 
           {/* Prompt Input Section */}
-          <div className="border-t border-gray-200 p-4 bg-gray-50">
-            <div className="flex gap-2">
-              <textarea
+          <div className="border-t border-gray-200 p-6 bg-white">
+            <div className="relative flex items-center">
+              <input
+                type="text"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={handlePromptKeyDown}
                 placeholder="Describe what you want to create... (e.g., Create a slideshow with fade transitions)"
-                className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                rows={3}
+                className="flex-1 px-4 py-3 pr-12 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
               />
               <button
                 onClick={handleSendPrompt}
                 disabled={!prompt.trim() || isProcessing}
-                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="absolute right-2 p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Send"
               >
                 <Send className="w-4 h-4" />
               </button>
