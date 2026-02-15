@@ -160,7 +160,7 @@ export const PreviewCanvas = ({
 
   return (
     <div className="flex-1 flex overflow-hidden">
-      {/* Middle Section - Create */}
+      {/* Middle Section - Compose */}
       <div className={`w-1/2 border-r flex flex-col ${
         isDarkMode 
           ? 'bg-[#1a1a1a] border-[#404040]' 
@@ -179,7 +179,7 @@ export const PreviewCanvas = ({
               }`}></div>
               <h3 className={`text-sm font-semibold tracking-wide ${
                 isDarkMode ? 'text-gray-100' : 'text-gray-900'
-              }`}>Create</h3>
+              }`}>Compose</h3>
             </div>
             {assets.length > 0 && (
               <button
@@ -274,7 +274,7 @@ export const PreviewCanvas = ({
                 }`}>No files selected</p>
                 <p className={`text-xs ${
                   isDarkMode ? 'text-gray-600' : 'text-gray-400'
-                }`}>Add files from Import</p>
+                }`}>Add files from Library</p>
               </div>
             )}
           </div>
@@ -327,7 +327,7 @@ export const PreviewCanvas = ({
         </div>
       </div>
 
-      {/* Right Section - Evaluate */}
+      {/* Right Section - Render */}
       <div className={`w-1/2 flex flex-col ${
         isDarkMode ? 'bg-[#1a1a1a]' : 'bg-white'
       }`}>
@@ -343,7 +343,7 @@ export const PreviewCanvas = ({
             }`}></div>
             <h3 className={`text-sm font-semibold tracking-wide ${
               isDarkMode ? 'text-gray-100' : 'text-gray-900'
-            }`}>Evaluate</h3>
+            }`}>Render</h3>
           </div>
         </div>
 

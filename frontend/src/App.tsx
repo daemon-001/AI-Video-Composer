@@ -23,9 +23,9 @@ function App() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(true);
 
-  // Handler to add asset to selected assets (Create grid)
+  // Handler to add asset to selected assets (Compose grid)
   const handleAddAssetToCreate = (asset: MediaAsset) => {
-    // Add to Create section if not already there
+    // Add to Compose section if not already there
     setSelectedAssets(prevSelected => {
       const isAlreadySelected = prevSelected.some(a => a.id === asset.id);
       if (!isAlreadySelected) {
@@ -34,7 +34,7 @@ function App() {
       return prevSelected;
     });
     
-    // Also add to Import section if not already there
+    // Also add to Library section if not already there
     setAssets(prevAssets => {
       const isInImport = prevAssets.some(a => a.id === asset.id);
       if (!isInImport) {
@@ -44,12 +44,12 @@ function App() {
     });
   };
 
-  // Handler to remove asset from selected assets (Create grid)
+  // Handler to remove asset from selected assets (Compose grid)
   const handleRemoveAssetFromCreate = (assetId: string) => {
     setSelectedAssets(selectedAssets.filter(a => a.id !== assetId));
   };
 
-  // Handler to clear all assets from Create grid
+  // Handler to clear all assets from Compose grid
   const handleClearAssetsFromCreate = () => {
     setSelectedAssets([]);
   };
@@ -67,7 +67,7 @@ function App() {
   // Process video with backend API
   const handleProcess = async (prompt: string) => {
     if (selectedAssets.length === 0) {
-      setOutput('[WARNING] Please add files to the Create grid first');
+      setOutput('[WARNING] Please add files to the Compose section first');
       return;
     }
 
@@ -187,9 +187,9 @@ function App() {
           />
         </div>
 
-        {/* Right Side - Create, Evaluate, and Process Output */}
+        {/* Right Side - Compose, Render, and Process Output */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          {/* Middle + Right Section - Create and Evaluate */}
+          {/* Middle + Right Section - Compose and Render */}
           <PreviewCanvas
             assets={selectedAssets}
             videoUrl={videoUrl}
@@ -204,7 +204,7 @@ function App() {
             isDarkMode={isDarkMode}
           />
 
-          {/* Bottom Section - Process Output (Under Create + Evaluate) */}
+          {/* Bottom Section - Process Output (Under Compose + Render) */}
           <ProcessViewer
             output={output}
             command={command}
