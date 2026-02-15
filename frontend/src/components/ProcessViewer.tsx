@@ -5,18 +5,29 @@ interface ProcessViewerProps {
   output: string;
   command?: string | null;
   isProcessing: boolean;
+  isDarkMode?: boolean;
 }
 
-export const ProcessViewer = ({ output, command, isProcessing }: ProcessViewerProps) => {
+export const ProcessViewer = ({ output, command, isProcessing, isDarkMode = false }: ProcessViewerProps) => {
   const [activeTab, setActiveTab] = useState<'output' | 'command'>('output');
 
   return (
-    <div className="bg-white border-t border-gray-200 flex flex-col" style={{ height: '250px' }}>
+    <div className={`border-t flex flex-col ${
+      isDarkMode 
+        ? 'bg-[#1a1a1a] border-[#404040]' 
+        : 'bg-white border-gray-200'
+    }`} style={{ height: '250px' }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
+      <div className={`flex items-center justify-between px-4 py-2 border-b ${
+        isDarkMode 
+          ? 'bg-[#0f0f0f] border-[#404040]' 
+          : 'bg-gray-50 border-gray-200'
+      }`}>
         <div className="flex items-center gap-2">
           <Terminal className="w-4 h-4 text-blue-500" />
-          <span className="text-gray-900 font-medium text-sm">Process Output</span>
+          <span className={`font-medium text-sm ${
+            isDarkMode ? 'text-gray-200' : 'text-gray-900'
+          }`}>Process Output</span>
           {isProcessing && (
             <div className="flex items-center gap-2 ml-2">
               <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
@@ -31,6 +42,8 @@ export const ProcessViewer = ({ output, command, isProcessing }: ProcessViewerPr
             className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
               activeTab === 'output'
                 ? 'bg-blue-500 text-white'
+                : isDarkMode
+                ? 'text-gray-400 hover:text-gray-200 hover:bg-[#2a2a2a]'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
             }`}
           >
@@ -41,6 +54,8 @@ export const ProcessViewer = ({ output, command, isProcessing }: ProcessViewerPr
             className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
               activeTab === 'command'
                 ? 'bg-blue-500 text-white'
+                : isDarkMode
+                ? 'text-gray-400 hover:text-gray-200 hover:bg-[#2a2a2a]'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
             }`}
           >
@@ -50,9 +65,13 @@ export const ProcessViewer = ({ output, command, isProcessing }: ProcessViewerPr
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-4 bg-gray-50">
+      <div className={`flex-1 overflow-auto p-4 ${
+        isDarkMode ? 'bg-[#0f0f0f]' : 'bg-gray-50'
+      } ${!isDarkMode ? 'light-scrollbar' : ''}`}>
         {activeTab === 'output' ? (
-          <div className="font-mono text-sm text-gray-700 whitespace-pre-wrap">
+          <div className={`font-mono text-sm whitespace-pre-wrap ${
+            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+          }`}>
             {output ? (
               <div className="space-y-1">
                 {output.split('\n').map((line, idx) => (
@@ -100,7 +119,9 @@ export const ProcessViewer = ({ output, command, isProcessing }: ProcessViewerPr
                 ))}
               </div>
             ) : (
-              <div className="flex items-center justify-center h-full text-gray-400">
+              <div className={`flex items-center justify-center h-full ${
+                isDarkMode ? 'text-gray-500' : 'text-gray-400'
+              }`}>
                 <div className="text-center">
                   <Terminal className="w-8 h-8 mx-auto mb-2 opacity-40" />
                   <p className="text-sm">No output yet</p>
@@ -113,22 +134,34 @@ export const ProcessViewer = ({ output, command, isProcessing }: ProcessViewerPr
           <div className="font-mono text-sm">
             {command ? (
               <div className="space-y-3">
-                <div className="flex items-center gap-2 text-gray-500 mb-2">
+                <div className={`flex items-center gap-2 mb-2 ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                }`}>
                   <Command className="w-4 h-4" />
                   <span className="text-xs">Generated FFmpeg Command:</span>
                 </div>
-                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <div className={`rounded-lg p-3 border ${
+                  isDarkMode 
+                    ? 'bg-[#2a2a2a] border-[#404040]' 
+                    : 'bg-white border-gray-200'
+                }`}>
                   <pre className="text-green-600 whitespace-pre-wrap break-all">{command}</pre>
                 </div>
                 <button
                   onClick={() => navigator.clipboard.writeText(command)}
-                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-lg transition-colors"
+                  className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                    isDarkMode
+                      ? 'bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300'
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  }`}
                 >
                   Copy to Clipboard
                 </button>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-full text-gray-400">
+              <div className={`flex items-center justify-center h-full ${
+                isDarkMode ? 'text-gray-500' : 'text-gray-400'
+              }`}>
                 <div className="text-center">
                   <Command className="w-8 h-8 mx-auto mb-2 opacity-40" />
                   <p className="text-sm">No command generated</p>

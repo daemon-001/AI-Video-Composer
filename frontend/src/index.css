@@ -49,20 +49,20 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-gray-800 rounded;
+  @apply bg-transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   @apply bg-gray-600 rounded hover:bg-gray-500;
 }
 
-/* Dark scrollbar for light areas */
-.light-scrollbar::-webkit-scrollbar-track {
-  @apply bg-gray-100 rounded;
-}
-
+/* Light scrollbar for light theme */
 .light-scrollbar::-webkit-scrollbar-thumb {
   @apply bg-gray-300 rounded hover:bg-gray-400;
+}
+
+.light-scrollbar::-webkit-scrollbar-track {
+  @apply bg-gray-100/50 rounded;
 }
 
 /* Loading animation */

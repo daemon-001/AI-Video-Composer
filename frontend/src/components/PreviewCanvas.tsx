@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Maximize2, Download, Settings, MoreHorizontal, Play, Send, Video, Music, X, Image as ImageIcon } from 'lucide-react';
+import { Send, Video, Music, X, Image as ImageIcon, Film, Sparkles, Download, Trash2 } from 'lucide-react';
+import { useDropzone } from 'react-dropzone';
 
 interface MediaAsset {
   id: string;
   name: string;
-  type: 'image' | 'video' | 'audio';
+  type: 'image' |'video' | 'audio';
   thumbnail: string;
   file: File;
 }
@@ -18,6 +19,9 @@ interface PreviewCanvasProps {
   isProcessing?: boolean;
   assets?: MediaAsset[];
   onRemoveAsset?: (assetId: string) => void;
+  onAddAsset?: (asset: MediaAsset) => void;
+  onClearAssets?: () => void;
+  isDarkMode?: boolean;
 }
 
 export const PreviewCanvas = ({
@@ -29,10 +33,95 @@ export const PreviewCanvas = ({
   isProcessing = false,
   assets = [],
   onRemoveAsset,
+  onAddAsset,
+  onClearAssets,
+  isDarkMode = false,
 }: PreviewCanvasProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [showControls, setShowControls] = useState(false);
   const [prompt, setPrompt] = useState('');
+
+  const getFileType = (file: File): 'image' | 'video' | 'audio' => {
+    if (file.type.startsWith('image/')) return 'image';
+    if (file.type.startsWith('video/')) return 'video';
+    if (file.type.startsWith('audio/')) return 'audio';
+    return 'image';
+  };
+
+  const generateVideoThumbnail = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+
+      video.onloadedmetadata = () => {
+        video.currentTime = Math.min(1, video.duration / 2);
+      };
+
+      video.onseeked = () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(URL.createObjectURL(blob));
+          } else {
+            reject(new Error('Failed to create thumbnail blob'));
+          }
+          URL.revokeObjectURL(video.src);
+        }, 'image/jpeg', 0.8);
+      };
+
+      video.onerror = () => {
+        reject(new Error('Failed to load video'));
+        URL.revokeObjectURL(video.src);
+      };
+
+      video.src = URL.createObjectURL(file);
+    });
+  };
+
+  const onDrop = async (acceptedFiles: File[]) => {
+    if (!onAddAsset) return;
+
+    for (const file of acceptedFiles) {
+      const type = getFileType(file);
+      let thumbnail = '';
+
+      if (type === 'video') {
+        try {
+          thumbnail = await generateVideoThumbnail(file);
+        } catch (error) {
+          console.error('Failed to generate video thumbnail:', error);
+          thumbnail = '';
+        }
+      } else {
+        thumbnail = URL.createObjectURL(file);
+      }
+
+      onAddAsset({
+        id: Math.random().toString(36).substr(2, 9),
+        name: file.name,
+        type,
+        thumbnail,
+        file,
+      });
+    }
+  };
+
+  const { getRootProps, getInputProps } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp'],
+      'video/*': ['.mp4', '.mov', '.avi', '.webm'],
+      'audio/*': ['.mp3', '.wav', '.ogg', '.m4a'],
+    },
+    noClick: true,
+  });
 
   useEffect(() => {
     if (videoRef.current) {
@@ -59,8 +148,6 @@ export const PreviewCanvas = ({
   const handleSendPrompt = () => {
     if (prompt.trim() && onProcess) {
       onProcess(prompt);
-      // Optionally clear prompt after sending
-      // setPrompt('');
     }
   };
 
@@ -71,170 +158,242 @@ export const PreviewCanvas = ({
     }
   };
 
-  const handleDownload = () => {
-    if (videoUrl) {
-      const link = document.createElement('a');
-      link.href = videoUrl;
-      link.download = 'output.mp4';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  };
-
   return (
-    <div className="flex-1 bg-gray-100 flex flex-col">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium text-gray-900">Create</h3>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {onProcess && (
-            <button
-              onClick={() => onProcess(prompt)}
-              disabled={isProcessing || !prompt.trim()}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Play className="w-4 h-4" />
-              {isProcessing ? 'Processing...' : 'Process Video'}
-            </button>
-          )}
-          <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-            <Settings className="w-4 h-4" />
-          </button>
-          <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-            <Maximize2 className="w-4 h-4" />
-          </button>
-          <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Main Content Area - Split into two sections */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Section - File Grid and Prompt */}
-        <div className="w-1/2 border-r border-gray-200 bg-white flex flex-col">
-          {/* File Grid */}
-          <div className="flex-1 overflow-y-auto p-4 min-h-0">
-            <div className="grid grid-cols-4 gap-2 auto-rows-min">
-              {assets.map((asset) => (
-                <div
-                  key={asset.id}
-                  className="group relative bg-white rounded-md overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                >
-                  {/* Remove Icon */}
-                  <button
-                    className="absolute top-1 right-1 z-10 bg-red-500 hover:bg-red-600 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (onRemoveAsset) {
-                        onRemoveAsset(asset.id);
-                      }
-                    }}
-                    title="Remove from Create grid"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-
-                  <div className="aspect-video bg-gray-100 relative">
-                    {asset.type === 'audio' ? (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-green-400 to-green-600">
-                        <Music className="w-10 h-10 text-white" />
-                      </div>
-                    ) : asset.type === 'video' && !asset.thumbnail ? (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple-400 to-purple-600">
-                        <Video className="w-10 h-10 text-white" />
-                      </div>
-                    ) : (
-                      <img
-                        src={asset.thumbnail}
-                        alt={asset.name}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                    
-                    {/* File Type Icon Badge */}
-                    <div className="absolute bottom-1 left-1 bg-white/20 backdrop-blur-md border border-white/30 rounded-sm px-1.5 py-1 flex items-center gap-1">
-                      {asset.type === 'video' && <Video className="w-3 h-3 text-white" />}
-                      {asset.type === 'audio' && <Music className="w-3 h-3 text-white" />}
-                      {asset.type === 'image' && <ImageIcon className="w-3 h-3 text-white" />}
-                    </div>
-                  </div>
-                  <div className="px-2 py-1.5">
-                    <p className="text-xs text-gray-700 truncate">{asset.name}</p>
-                  </div>
-                </div>
-              ))}
-              {assets.length === 0 && (
-                <div className="col-span-4 text-center py-8 text-gray-400">
-                  <p className="text-sm">No files selected</p>
-                  <p className="text-xs mt-1">Add files from the sidebar</p>
-                </div>
-              )}
+    <div className="flex-1 flex overflow-hidden">
+      {/* Middle Section - Create */}
+      <div className={`w-1/2 border-r flex flex-col ${
+        isDarkMode 
+          ? 'bg-[#1a1a1a] border-[#404040]' 
+          : 'bg-white border-gray-200'
+      }`}>
+        {/* Section Header */}
+        <div className={`px-4 py-3 border-b ${
+          isDarkMode ? 'border-[#404040]' : 'border-gray-200'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-1.5 h-6 rounded-full bg-gradient-to-b ${
+                isDarkMode 
+                  ? 'from-purple-500 to-blue-500' 
+                  : 'from-purple-600 to-blue-600'
+              }`}></div>
+              <h3 className={`text-sm font-semibold tracking-wide ${
+                isDarkMode ? 'text-gray-100' : 'text-gray-900'
+              }`}>Create</h3>
             </div>
+            {assets.length > 0 && (
+              <button
+                onClick={() => onClearAssets?.()}
+                className={`p-2 rounded-lg transition-all hover:scale-105 active:scale-95 ${
+                  isDarkMode
+                    ? 'hover:bg-red-500/10 text-gray-400 hover:text-red-400'
+                    : 'hover:bg-red-50 text-gray-500 hover:text-red-600'
+                }`}
+                title="Clear all files"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
+        </div>
 
-          {/* Prompt Input Section */}
-          <div className="border-t border-gray-200 p-6 bg-white">
-            <div className="relative flex items-center">
+        {/* File Grid */}
+        <div 
+          {...getRootProps()}
+          className={`flex-1 overflow-y-auto p-4 ${!isDarkMode ? 'light-scrollbar' : ''}`}
+        >
+          <input {...getInputProps()} />
+          <div className="grid grid-cols-4 gap-3">
+            {assets.map((asset) => (
+              <div
+                key={asset.id}
+                className={`group relative rounded-lg overflow-hidden transition-all cursor-pointer ${
+                  isDarkMode 
+                    ? 'bg-[#2a2a2a] hover:bg-[#323232] ring-1 ring-[#404040] hover:ring-blue-500/50' 
+                    : 'bg-white hover:shadow-lg ring-1 ring-gray-200 hover:ring-blue-400/50'
+                }`}
+              >
+                {/* Remove Icon */}
+                <button
+                  className="absolute top-2 right-2 z-10 bg-red-500 hover:bg-red-600 text-white rounded-lg p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg hover:scale-110 active:scale-95"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onRemoveAsset) {
+                      onRemoveAsset(asset.id);
+                    }
+                  }}
+                  title="Remove"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+
+                <div className="aspect-video bg-gray-100 relative">
+                  {asset.type === 'audio' ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-green-400 to-green-600">
+                      <Music className="w-10 h-10 text-white" />
+                    </div>
+                  ) : asset.type === 'video' && !asset.thumbnail ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple-400 to-purple-600">
+                      <Video className="w-10 h-10 text-white" />
+                    </div>
+                  ) : (
+                    <img
+                      src={asset.thumbnail}
+                      alt={asset.name}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                  
+                  {/* File Type Badge */}
+                  <div className="absolute bottom-2 left-2 bg-black/40 backdrop-blur-md border border-white/10 rounded-md px-2 py-1 flex items-center gap-1.5">
+                    {asset.type === 'video' && <Video className="w-3 h-3 text-white" />}
+                    {asset.type === 'audio' && <Music className="w-3 h-3 text-white" />}
+                    {asset.type === 'image' && <ImageIcon className="w-3 h-3 text-white" />}
+                  </div>
+                </div>
+                <div className={`px-3 py-2 border-t ${
+                  isDarkMode ? 'border-[#404040]' : 'border-gray-100'
+                }`}>
+                  <p className={`text-xs font-medium truncate ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>{asset.name}</p>
+                </div>
+              </div>
+            ))}
+            {assets.length === 0 && (
+              <div className="col-span-4 text-center py-12">
+                <div className={`inline-flex items-center justify-center w-16 h-16 rounded-xl mb-4 ${
+                  isDarkMode ? 'bg-[#2a2a2a]' : 'bg-gray-100'
+                }`}>
+                  <Video className={`w-8 h-8 ${
+                    isDarkMode ? 'text-gray-600' : 'text-gray-400'
+                  }`} />
+                </div>
+                <p className={`text-sm font-medium mb-1 ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}>No files selected</p>
+                <p className={`text-xs ${
+                  isDarkMode ? 'text-gray-600' : 'text-gray-400'
+                }`}>Add files from Import</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Prompt Input Section */}
+        <div className={`border-t p-4 ${
+          isDarkMode 
+            ? 'bg-[#1a1a1a] border-[#404040]' 
+            : 'bg-white border-gray-200'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                <Sparkles className={`w-4 h-4 ${
+                  isDarkMode ? 'text-gray-600' : 'text-gray-400'
+                }`} />
+              </div>
               <input
                 type="text"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={handlePromptKeyDown}
-                placeholder="Describe what you want to create... (e.g., Create a slideshow with fade transitions)"
-                className="flex-1 px-4 py-3 pr-12 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
+                placeholder="Describe what you want to create..."
+                className={`w-full pl-11 pr-4 py-3 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                  isDarkMode
+                    ? 'bg-[#2a2a2a] border-[#404040] text-gray-200 placeholder-gray-500'
+                    : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
+                }`}
               />
-              <button
-                onClick={handleSendPrompt}
-                disabled={!prompt.trim() || isProcessing}
-                className="absolute right-2 p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Send"
-              >
-                <Send className="w-4 h-4" />
-              </button>
             </div>
+            <button
+              onClick={handleSendPrompt}
+              disabled={!prompt.trim() || isProcessing}
+              className="px-5 py-3 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 shadow-lg flex items-center gap-2"
+            >
+              {isProcessing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span className="text-sm">Processing...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  <span className="text-sm">Generate</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Section - Evaluate */}
+      <div className={`w-1/2 flex flex-col ${
+        isDarkMode ? 'bg-[#1a1a1a]' : 'bg-white'
+      }`}>
+        {/* Section Header */}
+        <div className={`px-4 py-3 border-b ${
+          isDarkMode ? 'bg-[#1a1a1a] border-[#404040]' : 'bg-white border-gray-200'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-1.5 h-6 rounded-full bg-gradient-to-b ${
+              isDarkMode 
+                ? 'from-green-500 to-emerald-500' 
+                : 'from-green-600 to-emerald-600'
+            }`}></div>
+            <h3 className={`text-sm font-semibold tracking-wide ${
+              isDarkMode ? 'text-gray-100' : 'text-gray-900'
+            }`}>Evaluate</h3>
           </div>
         </div>
 
-        {/* Right Section - Video Player */}
+        {/* Video Player */}
         <div 
-          className="w-1/2 flex items-center justify-center p-6 bg-gray-100 relative"
+          className="flex-1 flex items-center justify-center p-6"
           onMouseEnter={() => setShowControls(true)}
           onMouseLeave={() => setShowControls(false)}
         >
-          <div className="relative w-full h-full max-w-6xl max-h-[calc(100vh-400px)] bg-white rounded-xl overflow-hidden shadow-lg">
+          <div className={`relative w-full h-full rounded-xl overflow-hidden shadow-lg ${
+            isDarkMode ? 'bg-black' : 'bg-white'
+          }`}>
             {videoUrl ? (
-              <video
-                ref={videoRef}
-                src={videoUrl}
-                className="w-full h-full object-contain bg-gray-900"
-                onTimeUpdate={handleTimeUpdate}
-                controls
-              />
+              <>
+                <video
+                  ref={videoRef}
+                  src={videoUrl}
+                  className="w-full h-full object-contain bg-black"
+                  onTimeUpdate={handleTimeUpdate}
+                  controls
+                />
+                {showControls && (
+                  <button 
+                    className="absolute bottom-4 right-4 p-2 bg-white/90 hover:bg-white text-gray-700 rounded-lg shadow-lg transition-all hover:scale-105"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                )}
+              </>
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-gray-400 bg-gray-50">
-                <div className="text-center">
-                  <div className="text-6xl mb-4">🎬</div>
-                  <p className="text-lg font-medium text-gray-600">No video loaded</p>
-                  <p className="text-sm text-gray-400 mt-2">Add files and describe what you want to create</p>
+              <div className={`absolute inset-0 flex items-center justify-center ${
+                isDarkMode ? 'bg-[#0f0f0f]' : 'bg-gray-50'
+              }`}>
+                <div className="text-center px-8">
+                  <div className={`inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-6 ${
+                    isDarkMode 
+                      ? 'bg-gradient-to-br from-purple-500/10 to-blue-500/10' 
+                      : 'bg-gradient-to-br from-purple-50 to-blue-50'
+                  }`}>
+                    <Film className={`w-10 h-10 ${
+                      isDarkMode ? 'text-purple-400' : 'text-purple-500'
+                    }`} />
+                  </div>
+                  <p className={`text-lg font-semibold mb-2 ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>No video loaded</p>
+                  <p className={`text-sm max-w-xs mx-auto ${
+                    isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                  }`}>Add files and describe what you want to create</p>
                 </div>
-              </div>
-            )}
-
-            {/* Overlay Controls */}
-            {showControls && videoUrl && (
-              <div className="absolute bottom-4 right-4 flex gap-2 opacity-0 hover:opacity-100 transition-opacity">
-                <button 
-                  onClick={handleDownload}
-                  className="p-2 bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-700 rounded-lg shadow transition-colors"
-                  title="Download video"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
               </div>
             )}
           </div>
