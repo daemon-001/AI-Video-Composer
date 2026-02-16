@@ -172,26 +172,35 @@ export const EditorSidebar = ({ assets, onAssetsChange, onAddAssetToCreate, isDa
       </div>
 
       {/* Right Content Panel */}
-      <div className={`w-80 flex flex-col h-full ${
-        isDarkMode ? 'bg-[#1a1a1a]' : 'bg-white'
+      <div className={`w-80 flex flex-col h-full p-3 ${
+        isDarkMode ? 'bg-[#0f0f0f]' : 'bg-gray-50'
       }`}>
-        {/* Import Header */}
-        <div className={`px-4 py-3 border-b ${
-          isDarkMode ? 'border-[#404040]' : 'border-gray-200'
+        {/* Library Card */}
+        <div className={`flex flex-col h-full rounded-xl overflow-hidden ${
+          isDarkMode 
+            ? 'bg-[#1a1a1a] border border-[#404040] shadow-xl shadow-black/20' 
+            : 'bg-white border border-gray-200 shadow-lg'
         }`}>
-          <div className="flex items-center gap-2 mb-1">
-            <Upload className={`w-4 h-4 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-            <h2 className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Library</h2>
+          {/* Import Header */}
+          <div className={`px-4 py-3 border-b ${
+            isDarkMode ? 'border-[#404040]' : 'border-gray-200'
+          }`}>
+            <div className="flex items-center justify-between h-6">
+              <div className="flex items-center gap-2">
+                <Upload className={`w-4 h-4 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+                <h3 className={`text-sm font-semibold tracking-wide ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Library</h3>
+              </div>
+              {/* Spacer to match button in Compose section */}
+              <div className="w-8 h-8"></div>
+            </div>
           </div>
-          <div className="h-0.5 w-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full"></div>
-        </div>
 
-        {/* Content Area - Assets Grid */}
-        {/* Assets Grid */}
-        <div 
-          {...getRootProps()}
-          className={`flex-1 overflow-y-auto p-3 ${!isDarkMode ? 'light-scrollbar' : ''}`}
-        >
+          {/* Content Area - Assets Grid */}
+          {/* Assets Grid */}
+          <div 
+            {...getRootProps()}
+            className={`flex-1 overflow-y-auto p-3 ${!isDarkMode ? 'light-scrollbar' : ''}`}
+          >
           <input {...getInputProps()} ref={fileInputRef} />
           <div className="grid grid-cols-2 gap-2">
             {/* Add File Card */}
@@ -323,6 +332,7 @@ export const EditorSidebar = ({ assets, onAssetsChange, onAddAssetToCreate, isDa
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     </div>

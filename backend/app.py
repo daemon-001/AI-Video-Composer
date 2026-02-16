@@ -52,8 +52,6 @@ client = OpenAI(
     api_key=GROQ_API_KEY,
 )
 
-logger.info(f"✓ Using Groq API with model: {GROQ_MODEL}")
-
 # Initialize FastAPI app
 app = FastAPI(
     title="FFmpeg AI Composer",
@@ -630,10 +628,6 @@ async def generate_command_only(
 
 if __name__ == "__main__":
     import uvicorn
-    
-    print("🚀 Starting FFmpeg AI Composer Backend")
-    print(f"📁 Working directory: {WORK_DIR}")
-    print(f"🤖 AI Model: Google Gemini 2.5 Lite")
     
     if not check_ffmpeg_installed():
         print("\n⚠️  WARNING: FFmpeg is not installed!")

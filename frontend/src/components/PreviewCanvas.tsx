@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Video, Music, X, Image as ImageIcon, Film, Sparkles, Download, Trash2 } from 'lucide-react';
+import { Send, Video, Music, X, Image as ImageIcon, Film, Sparkles, Download, Trash2, Play, Upload, RefreshCw } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 
 interface MediaAsset {
@@ -40,6 +40,137 @@ export const PreviewCanvas = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [showControls, setShowControls] = useState(false);
   const [prompt, setPrompt] = useState('');
+  const [importedVideoUrl, setImportedVideoUrl] = useState<string | null>(null);
+  const [reloadedVideoUrl, setReloadedVideoUrl] = useState<string | null>(null);
+
+  // Reset imported and reloaded state when video URL changes
+  useEffect(() => {
+    setImportedVideoUrl(null);
+    setReloadedVideoUrl(null);
+  }, [videoUrl]);
+
+  // Generate video thumbnail from current video
+  const generateThumbnailFromVideo = (): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (!videoRef.current) {
+        reject(new Error('Video element not available'));
+        return;
+      }
+
+      try {
+        const video = videoRef.current;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve(URL.createObjectURL(blob));
+            } else {
+              reject(new Error('Failed to create thumbnail blob'));
+            }
+          }, 'image/jpeg', 0.8);
+        } else {
+          reject(new Error('Failed to get canvas context'));
+        }
+      } catch (error) {
+        reject(error);
+      }
+    });
+  };
+
+  // Handle download video
+  const handleDownloadVideo = () => {
+    if (videoUrl) {
+      const a = document.createElement('a');
+      a.href = videoUrl;
+      a.download = `video-${Date.now()}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
+  // Handle import to library
+  const handleImportToLibrary = async () => {
+    if (videoUrl && onAddAsset) {
+      // Check if this video has already been imported
+      if (importedVideoUrl === videoUrl) {
+        console.log('Video already imported to library');
+        return;
+      }
+
+      try {
+        const response = await fetch(videoUrl);
+        const blob = await response.blob();
+        const file = new File([blob], `rendered-video-${Date.now()}.mp4`, { type: 'video/mp4' });
+        
+        // Generate thumbnail from video element
+        let thumbnail = videoUrl;
+        try {
+          thumbnail = await generateThumbnailFromVideo();
+        } catch (error) {
+          console.warn('Failed to generate thumbnail, using video URL:', error);
+        }
+        
+        const asset: MediaAsset = {
+          id: Math.random().toString(36).substr(2, 9),
+          name: file.name,
+          type: 'video',
+          thumbnail: thumbnail,
+          file: file,
+        };
+        
+        onAddAsset(asset);
+        setImportedVideoUrl(videoUrl); // Mark this video as imported
+      } catch (error) {
+        console.error('Failed to import video to library:', error);
+      }
+    }
+  };
+
+  // Handle reload to compose
+  const handleReloadToCompose = async () => {
+    if (videoUrl && onAddAsset && onClearAssets) {
+      // Check if this video has already been reloaded
+      if (reloadedVideoUrl === videoUrl) {
+        console.log('Video already reloaded to compose');
+        return;
+      }
+
+      try {
+        onClearAssets();
+        
+        const response = await fetch(videoUrl);
+        const blob = await response.blob();
+        const file = new File([blob], `rendered-video-${Date.now()}.mp4`, { type: 'video/mp4' });
+        
+        // Generate thumbnail from video element
+        let thumbnail = videoUrl;
+        try {
+          thumbnail = await generateThumbnailFromVideo();
+        } catch (error) {
+          console.warn('Failed to generate thumbnail, using video URL:', error);
+        }
+        
+        const asset: MediaAsset = {
+          id: Math.random().toString(36).substr(2, 9),
+          name: file.name,
+          type: 'video',
+          thumbnail: thumbnail,
+          file: file,
+        };
+        
+        onAddAsset(asset);
+        setReloadedVideoUrl(videoUrl); // Mark this video as reloaded
+      } catch (error) {
+        console.error('Failed to reload video to compose:', error);
+      }
+    }
+  };
 
   const getFileType = (file: File): 'image' | 'video' | 'audio' => {
     if (file.type.startsWith('image/')) return 'image';
@@ -159,41 +290,45 @@ export const PreviewCanvas = ({
   };
 
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className={`flex-1 flex overflow-hidden gap-3 p-3 ${
+      isDarkMode ? 'bg-[#0f0f0f]' : 'bg-gray-50'
+    }`}>
       {/* Middle Section - Compose */}
-      <div className={`w-1/2 border-r flex flex-col ${
+      <div className={`w-1/2 flex flex-col rounded-xl overflow-hidden ${
         isDarkMode 
-          ? 'bg-[#1a1a1a] border-[#404040]' 
-          : 'bg-white border-gray-200'
+          ? 'bg-[#1a1a1a] border border-[#404040] shadow-xl shadow-black/20' 
+          : 'bg-white border border-gray-200 shadow-lg'
       }`}>
         {/* Section Header */}
         <div className={`px-4 py-3 border-b ${
           isDarkMode ? 'border-[#404040]' : 'border-gray-200'
         }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-1.5 h-6 rounded-full bg-gradient-to-b ${
+          <div className="flex items-center justify-between h-6">
+            <div className="flex items-center gap-2">
+              <Film className={`w-4 h-4 ${
                 isDarkMode 
-                  ? 'from-purple-500 to-blue-500' 
-                  : 'from-purple-600 to-blue-600'
-              }`}></div>
+                  ? 'text-purple-400' 
+                  : 'text-purple-600'
+              }`} />
               <h3 className={`text-sm font-semibold tracking-wide ${
                 isDarkMode ? 'text-gray-100' : 'text-gray-900'
               }`}>Compose</h3>
             </div>
-            {assets.length > 0 && (
-              <button
-                onClick={() => onClearAssets?.()}
-                className={`p-2 rounded-lg transition-all hover:scale-105 active:scale-95 ${
-                  isDarkMode
-                    ? 'hover:bg-red-500/10 text-gray-400 hover:text-red-400'
-                    : 'hover:bg-red-50 text-gray-500 hover:text-red-600'
-                }`}
-                title="Clear all files"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
+            {/* Always render button space to prevent layout shift */}
+            <button
+              onClick={() => onClearAssets?.()}
+              className={`p-2 rounded-lg transition-all ${
+                assets.length > 0
+                  ? isDarkMode
+                    ? 'hover:bg-red-500/10 text-gray-400 hover:text-red-400 hover:scale-105 active:scale-95'
+                    : 'hover:bg-red-50 text-gray-500 hover:text-red-600 hover:scale-105 active:scale-95'
+                  : 'invisible'
+              }`}
+              title="Clear all files"
+              disabled={assets.length === 0}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -328,75 +463,107 @@ export const PreviewCanvas = ({
       </div>
 
       {/* Right Section - Render */}
-      <div className={`w-1/2 flex flex-col ${
-        isDarkMode ? 'bg-[#1a1a1a]' : 'bg-white'
+      <div className={`w-1/2 flex flex-col rounded-xl overflow-hidden ${
+        isDarkMode 
+          ? 'bg-[#1a1a1a] border border-[#404040] shadow-xl shadow-black/20' 
+          : 'bg-white border border-gray-200 shadow-lg'
       }`}>
         {/* Section Header */}
         <div className={`px-4 py-3 border-b ${
-          isDarkMode ? 'bg-[#1a1a1a] border-[#404040]' : 'bg-white border-gray-200'
+          isDarkMode ? 'border-[#404040]' : 'border-gray-200'
         }`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-1.5 h-6 rounded-full bg-gradient-to-b ${
-              isDarkMode 
-                ? 'from-green-500 to-emerald-500' 
-                : 'from-green-600 to-emerald-600'
-            }`}></div>
-            <h3 className={`text-sm font-semibold tracking-wide ${
-              isDarkMode ? 'text-gray-100' : 'text-gray-900'
-            }`}>Render</h3>
+          <div className="flex items-center justify-between h-6">
+            <div className="flex items-center gap-2">
+              <Play className={`w-4 h-4 ${
+                isDarkMode 
+                  ? 'text-green-400' 
+                  : 'text-green-600'
+              }`} />
+              <h3 className={`text-sm font-semibold tracking-wide ${
+                isDarkMode ? 'text-gray-100' : 'text-gray-900'
+              }`}>Render</h3>
+            </div>
+            
+            {/* Action Buttons */}
+            {videoUrl ? (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleImportToLibrary}
+                  className={`p-2 rounded-lg transition-all hover:scale-105 active:scale-95 ${
+                    isDarkMode
+                      ? 'hover:bg-blue-500/10 text-gray-400 hover:text-blue-400'
+                      : 'hover:bg-blue-50 text-gray-500 hover:text-blue-600'
+                  }`}
+                  title="Import to Library"
+                >
+                  <Upload className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleDownloadVideo}
+                  className={`p-2 rounded-lg transition-all hover:scale-105 active:scale-95 ${
+                    isDarkMode
+                      ? 'hover:bg-green-500/10 text-gray-400 hover:text-green-400'
+                      : 'hover:bg-green-50 text-gray-500 hover:text-green-600'
+                  }`}
+                  title="Download Video"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleReloadToCompose}
+                  className={`p-2 rounded-lg transition-all hover:scale-105 active:scale-95 ${
+                    isDarkMode
+                      ? 'hover:bg-purple-500/10 text-gray-400 hover:text-purple-400'
+                      : 'hover:bg-purple-50 text-gray-500 hover:text-purple-600'
+                  }`}
+                  title="Reload to Compose"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="w-8 h-8"></div>
+            )}
           </div>
         </div>
 
         {/* Video Player */}
         <div 
-          className="flex-1 flex items-center justify-center p-6"
-          onMouseEnter={() => setShowControls(true)}
-          onMouseLeave={() => setShowControls(false)}
+          className="flex-1 flex items-center justify-center"
         >
-          <div className={`relative w-full h-full rounded-xl overflow-hidden shadow-lg ${
-            isDarkMode ? 'bg-black' : 'bg-white'
-          }`}>
-            {videoUrl ? (
-              <>
-                <video
-                  ref={videoRef}
-                  src={videoUrl}
-                  className="w-full h-full object-contain bg-black"
-                  onTimeUpdate={handleTimeUpdate}
-                  controls
-                />
-                {showControls && (
-                  <button 
-                    className="absolute bottom-4 right-4 p-2 bg-white/90 hover:bg-white text-gray-700 rounded-lg shadow-lg transition-all hover:scale-105"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
-                )}
-              </>
-            ) : (
-              <div className={`absolute inset-0 flex items-center justify-center ${
-                isDarkMode ? 'bg-[#0f0f0f]' : 'bg-gray-50'
-              }`}>
-                <div className="text-center px-8">
-                  <div className={`inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-6 ${
-                    isDarkMode 
-                      ? 'bg-gradient-to-br from-purple-500/10 to-blue-500/10' 
-                      : 'bg-gradient-to-br from-purple-50 to-blue-50'
-                  }`}>
-                    <Film className={`w-10 h-10 ${
-                      isDarkMode ? 'text-purple-400' : 'text-purple-500'
-                    }`} />
-                  </div>
-                  <p className={`text-lg font-semibold mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>No video loaded</p>
-                  <p className={`text-sm max-w-xs mx-auto ${
-                    isDarkMode ? 'text-gray-500' : 'text-gray-500'
-                  }`}>Add files and describe what you want to create</p>
+          {videoUrl ? (
+            <div className="relative rounded-xl overflow-hidden shadow-lg">
+              <video
+                ref={videoRef}
+                src={videoUrl}
+                className="max-h-[calc(100vh-250px)] w-auto block bg-black"
+                onTimeUpdate={handleTimeUpdate}
+                controls
+              />
+            </div>
+          ) : (
+            <div className={`w-full h-full rounded-xl flex items-center justify-center ${
+              isDarkMode ? 'bg-[#0f0f0f]' : 'bg-gray-50'
+            }`}>
+              <div className="text-center px-8">
+                <div className={`inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-6 ${
+                  isDarkMode 
+                    ? 'bg-gradient-to-br from-purple-500/10 to-blue-500/10' 
+                    : 'bg-gradient-to-br from-purple-50 to-blue-50'
+                }`}>
+                  <Film className={`w-10 h-10 ${
+                    isDarkMode ? 'text-purple-400' : 'text-purple-500'
+                  }`} />
                 </div>
+                <p className={`text-lg font-semibold mb-2 ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>No video loaded</p>
+                <p className={`text-sm max-w-xs mx-auto ${
+                  isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                }`}>Add files and describe what you want to create</p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

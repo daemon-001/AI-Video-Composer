@@ -2,6 +2,32 @@
 
 All notable changes to the AI Video Composer project are documented here.
 
+## [2026-02-17] - UI Enhancements and Card-Based Design
+### Added
+- Action buttons in render section title bar
+  - Import button to add rendered video to library
+  - Download button to save video locally
+  - Reload button to copy video to compose section
+- Video thumbnail generation for imported/reloaded videos
+- Duplicate prevention for import and reload actions
+
+### Changed
+- Converted all sections to card-based design with rounded corners and shadows
+- Updated section titles with consistent icon styling
+  - Library: Upload icon
+  - Compose: Film icon
+  - Render: Play icon
+- Made all title bars static width to prevent layout shifts
+- Centered video player in render section
+- Removed inner padding from render section for full-width video display
+- Improved button sizing and spacing consistency across sections
+- Cleaned up backend startup logs (removed emojis and model specifications)
+
+### Fixed
+- Duplicate files being added when clicking import/reload buttons multiple times
+- Video thumbnail display when adding rendered videos to library or compose
+- Title bar height consistency across all sections
+
 ## [2026-02-16] - 02:18:27
 ### Changed
 - Improved the design of editor/preview UI
