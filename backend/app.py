@@ -81,6 +81,19 @@ MAX_VIDEO_DURATION = 120  # 2 minutes
 WORK_DIR = Path(tempfile.gettempdir()) / "ffmpeg_composer"
 WORK_DIR.mkdir(exist_ok=True)
 
+# Path to bundled FFmpeg executable
+BASE_DIR = Path(__file__).parent.parent  # Project root
+FFMPEG_BIN = BASE_DIR / "ffmpeg-8.0.1-essentials_build" / "bin" / "ffmpeg.exe"
+FFPROBE_BIN = BASE_DIR / "ffmpeg-8.0.1-essentials_build" / "bin" / "ffprobe.exe"
+
+
+def get_ffmpeg_path() -> str:
+    """Get path to bundled FFmpeg executable"""
+    if FFMPEG_BIN.exists():
+        return str(FFMPEG_BIN)
+    # Fallback to system FFmpeg if bundled version not found
+    return "ffmpeg"
+
 
 class FileInfo(BaseModel):
     """Model for file information"""
@@ -102,8 +115,9 @@ class ProcessRequest(BaseModel):
 def check_ffmpeg_installed():
     """Check if FFmpeg is available"""
     try:
+        ffmpeg_path = get_ffmpeg_path()
         result = subprocess.run(
-            ["ffmpeg", "-version"],
+            [ffmpeg_path, "-version"],
             capture_output=True,
             text=True,
             check=False
@@ -363,6 +377,9 @@ def execute_ffmpeg_command_sync(command: str, work_dir: Path) -> tuple[bool, str
         
         if args[0] != "ffmpeg":
             return False, "Command must start with 'ffmpeg'"
+        
+        # Replace 'ffmpeg' with path to bundled executable
+        args[0] = get_ffmpeg_path()
         
         # Execute FFmpeg command
         result = subprocess.run(

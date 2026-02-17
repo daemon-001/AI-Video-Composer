@@ -1,6 +1,8 @@
 __pycache__
 backend/__pycache__
 backend/.env
+ffmpeg-8.0.1-essentials_build
+
 
 frontend/node_modules
 frontend/.env
