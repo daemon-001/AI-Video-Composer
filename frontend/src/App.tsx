@@ -18,7 +18,8 @@ function App() {
   const [assets, setAssets] = useState<MediaAsset[]>([]);
   const [selectedAssets, setSelectedAssets] = useState<MediaAsset[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [output, setOutput] = useState('[READY] Ready to process your media');
+  const [output, setOutput] = useState('');
+  const [currentPhase, setCurrentPhase] = useState('Ready to process your media');
   const [command, setCommand] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -54,29 +55,20 @@ function App() {
     setSelectedAssets([]);
   };
 
-  // Helper function to add output with delay
-  const addOutputWithDelay = (message: string, delay: number = 1000): Promise<void> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        setOutput((prev) => prev + message);
-        resolve();
-      }, delay);
-    });
-  };
-
   // Process video with backend API
   const handleProcess = async (prompt: string) => {
     if (selectedAssets.length === 0) {
-      setOutput('[WARNING] Please add files to the Compose section first');
+      setCurrentPhase('Please add files to the Compose section first');
       return;
     }
 
     if (!prompt.trim()) {
-      setOutput('[WARNING] Please enter a prompt describing what you want to create');
+      setCurrentPhase('Please enter a prompt describing what you want to create');
       return;
     }
 
     setIsProcessing(true);
+    setCurrentPhase('Starting FFmpeg processing...');
     setOutput('[INFO] Starting FFmpeg processing...\n');
     setCommand(null);
     setVideoUrl(null);
@@ -85,9 +77,22 @@ function App() {
       // Extract files from selected assets
       const files = selectedAssets.map(asset => asset.file);
 
-      await addOutputWithDelay('[OK] Uploading files...\n');
-      await addOutputWithDelay('[OK] Analyzing media files...\n');
-      await addOutputWithDelay('[OK] Generating FFmpeg command with AI...\n');
+      setCurrentPhase('Loading files...');
+      setOutput(prev => prev + `[INFO] Loading ${files.length} file(s)...\n`);
+      
+      // Add file info to logs
+      files.forEach(file => {
+        const fileType = file.type.startsWith('image/') ? 'image' : 
+                        file.type.startsWith('video/') ? 'video' : 
+                        file.type.startsWith('audio/') ? 'audio' : 'file';
+        setOutput(prev => prev + `[INFO] - ${file.name} (${fileType})\n`);
+      });
+
+      setCurrentPhase('Analyzing media files...');
+      setOutput(prev => prev + '[INFO] Analyzing media files...\n');
+
+      setCurrentPhase('Generating FFmpeg commands...');
+      setOutput(prev => prev + '[INFO] Generating FFmpeg commands...\n');
 
       // Call backend API
       const response = await apiService.processVideo({
@@ -97,20 +102,30 @@ function App() {
         top_p: 0.95,
       });
 
+      setCurrentPhase('Processing video...');
+      setOutput(prev => prev + '[OK] Generated FFmpeg command\n');
+      setOutput(prev => prev + '[INFO] Processing video...\n');
+      
       setCommand(response.command);
-      await addOutputWithDelay('[OK] Generated command\n');
-      await addOutputWithDelay('[OK] Processing video...\n');
-
+      
       // Create video URL from blob
       const videoBlob = new Blob([response.video], { type: 'video/mp4' });
       const url = URL.createObjectURL(videoBlob);
       setVideoUrl(url);
 
-      await addOutputWithDelay('[SUCCESS] Video generated successfully!\n');
+      // Append backend logs if available
+      if (response.logs) {
+        // Backend sends logs separated by || (can't use newlines in HTTP headers)
+        const backendLogs = response.logs.split('||').join('\n');
+        setOutput(prev => prev + '\n--- Backend Process Log ---\n' + backendLogs + '\n');
+      }
+
+      setCurrentPhase('Video generated successfully!');
     } catch (error: any) {
       console.error('Processing error:', error);
       const errorMsg = error.response?.data?.detail || error.message || 'Unknown error occurred';
-      setOutput((prev) => prev + `[ERROR] Error: ${errorMsg}\n`);
+      setCurrentPhase(`Error: ${errorMsg}`);
+      setOutput(prev => prev + `[ERROR] ${errorMsg}\n`);
     } finally {
       setIsProcessing(false);
     }
@@ -142,7 +157,7 @@ function App() {
           <div>
             <h1 className={`text-lg font-bold tracking-tight ${
               isDarkMode ? 'text-gray-100' : 'text-gray-900'
-            }`}>Project +</h1>
+            }`}>AI Video Composer</h1>
           </div>
         </div>
 
@@ -207,6 +222,7 @@ function App() {
           {/* Bottom Section - Process Output (Under Compose + Render) */}
           <ProcessViewer
             output={output}
+            currentPhase={currentPhase}
             command={command}
             isProcessing={isProcessing}
             isDarkMode={isDarkMode}

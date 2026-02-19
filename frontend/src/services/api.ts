@@ -32,6 +32,7 @@ export interface ProcessResponse {
   video: Blob;
   command: string;
   aiResponse: string;
+  logs: string;
 }
 
 export interface CommandResponse {
@@ -77,13 +78,19 @@ class APIService {
     });
 
     // Extract headers
+    console.log('Response headers:', response.headers);
     const command = response.headers['x-generated-command'] || '';
     const aiResponse = response.headers['x-ai-response'] || '';
+    const logs = response.headers['x-process-logs'] || '';
+    
+    console.log('Extracted command:', command);
+    console.log('Extracted logs:', logs);
 
     return {
       video: response.data,
       command,
       aiResponse,
+      logs,
     };
   }
 

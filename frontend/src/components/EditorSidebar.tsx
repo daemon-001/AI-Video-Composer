@@ -121,7 +121,7 @@ export const EditorSidebar = ({ assets, onAssetsChange, onAddAssetToCreate, isDa
   };
 
   const filterItems = [
-    { id: 'all' as MediaFilter, icon: Grid3x3, label: 'All Items' },
+    { id: 'all' as MediaFilter, icon: Grid3x3, label: 'All' },
     { id: 'video' as MediaFilter, icon: Video, label: 'Video' },
     { id: 'audio' as MediaFilter, icon: Music, label: 'Audio' },
     { id: 'image' as MediaFilter, icon: ImageIcon, label: 'Image' },
@@ -137,7 +137,7 @@ export const EditorSidebar = ({ assets, onAssetsChange, onAddAssetToCreate, isDa
       isDarkMode ? 'border-[#404040]' : 'border-gray-200'
     }`}>
       {/* Left Vertical Menu */}
-      <div className={`w-20 border-r flex flex-col items-center py-4 gap-1 ${
+      <div className={`w-20 border-r flex flex-col items-center py-4 px-2 gap-1 ${
         isDarkMode 
           ? 'bg-[#1a1a1a] border-[#404040]' 
           : 'bg-white border-gray-200'
@@ -150,7 +150,7 @@ export const EditorSidebar = ({ assets, onAssetsChange, onAddAssetToCreate, isDa
             <button
               key={item.id}
               onClick={() => setActiveFilter(item.id)}
-              className={`w-full flex flex-col items-center gap-1.5 py-3.5 px-2 rounded-xl transition-all ${
+              className={`w-full aspect-square flex flex-col items-center justify-center gap-1 py-2 px-2 rounded-xl transition-all ${
                 isActive
                   ? isDarkMode
                     ? 'bg-gradient-to-br from-purple-500/20 to-blue-500/20 text-purple-400 shadow-lg'
@@ -238,6 +238,10 @@ export const EditorSidebar = ({ assets, onAssetsChange, onAddAssetToCreate, isDa
               <div
                 key={asset.id}
                 draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('application/json', JSON.stringify(asset));
+                  e.dataTransfer.effectAllowed = 'copy';
+                }}
                 className={`relative group cursor-move rounded-lg overflow-hidden transition-all ${
                   isDarkMode 
                     ? 'bg-[#2a2a2a] hover:bg-[#323232] ring-1 ring-[#404040] hover:ring-blue-500/50' 
@@ -269,9 +273,9 @@ export const EditorSidebar = ({ assets, onAssetsChange, onAddAssetToCreate, isDa
                   </div>
                   
                   {/* Hover Overlay with Centered Plus Icon */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
                     <button
-                      className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white rounded-full p-3 shadow-xl transition-all transform scale-90 group-hover:scale-100 hover:scale-110 active:scale-95"
+                      className="bg-white/60 hover:bg-white/70 text-gray-800 rounded-full p-3 shadow-xl transition-all transform scale-90 group-hover:scale-100 hover:scale-110 active:scale-95 backdrop-blur-sm"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (onAddAssetToCreate) {
@@ -286,7 +290,7 @@ export const EditorSidebar = ({ assets, onAssetsChange, onAddAssetToCreate, isDa
                   
                   <button
                     onClick={() => removeAsset(asset.id)}
-                    className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-lg p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg z-10 hover:scale-110 active:scale-95"
+                    className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-600/90 text-white rounded-lg p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg z-10 hover:scale-110 active:scale-95 backdrop-blur-sm"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>

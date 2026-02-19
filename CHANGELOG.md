@@ -2,6 +2,15 @@
 
 All notable changes to the AI Video Composer project are documented here.
 
+## [2026-02-20] - 01:26:48
+### Changed
+- Sidebar: Optimised the ui
+- App.tsx: Removed duplicate success message
+- Backend: Changed video processing logic to support complex prompts
+- Backend: Added comprehensive VIDEO CONCATENATION section and improved error messages
+- Backend: Removed duplicate logger.info for success message
+- Backend: Filenames now have all non-ASCII characters (including emoji) removed
+
 ## [2026-02-17] - UI Enhancements and Card-Based Design
 ### Added
 - Action buttons in render section title bar

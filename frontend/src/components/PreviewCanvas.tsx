@@ -134,7 +134,7 @@ export const PreviewCanvas = ({
 
   // Handle reload to compose
   const handleReloadToCompose = async () => {
-    if (videoUrl && onAddAsset && onClearAssets) {
+    if (videoUrl && onAddAsset) {
       // Check if this video has already been reloaded
       if (reloadedVideoUrl === videoUrl) {
         console.log('Video already reloaded to compose');
@@ -142,8 +142,6 @@ export const PreviewCanvas = ({
       }
 
       try {
-        onClearAssets();
-        
         const response = await fetch(videoUrl);
         const blob = await response.blob();
         const file = new File([blob], `rendered-video-${Date.now()}.mp4`, { type: 'video/mp4' });
@@ -254,6 +252,31 @@ export const PreviewCanvas = ({
     noClick: true,
   });
 
+  // Handle drag and drop from library
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    try {
+      const data = e.dataTransfer.getData('application/json');
+      if (data && onAddAsset) {
+        const asset = JSON.parse(data);
+        // Check if asset already exists in compose section
+        const exists = assets.some((a) => a.id === asset.id);
+        if (!exists) {
+          onAddAsset(asset);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to parse dropped asset:', error);
+    }
+  };
+
   useEffect(() => {
     if (videoRef.current) {
       if (isPlaying) {
@@ -307,8 +330,8 @@ export const PreviewCanvas = ({
             <div className="flex items-center gap-2">
               <Film className={`w-4 h-4 ${
                 isDarkMode 
-                  ? 'text-purple-400' 
-                  : 'text-purple-600'
+                  ? 'text-orange-400' 
+                  : 'text-orange-600'
               }`} />
               <h3 className={`text-sm font-semibold tracking-wide ${
                 isDarkMode ? 'text-gray-100' : 'text-gray-900'
@@ -335,10 +358,34 @@ export const PreviewCanvas = ({
         {/* File Grid */}
         <div 
           {...getRootProps()}
+          onDragOver={handleDragOver}
+          onDrop={(e) => {
+            // First try to handle as library asset
+            handleDrop(e);
+          }}
           className={`flex-1 overflow-y-auto p-4 ${!isDarkMode ? 'light-scrollbar' : ''}`}
         >
           <input {...getInputProps()} />
-          <div className="grid grid-cols-4 gap-3">
+          {assets.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <div className={`inline-flex items-center justify-center w-16 h-16 rounded-xl mb-4 ${
+                  isDarkMode ? 'bg-[#2a2a2a]' : 'bg-gray-100'
+                }`}>
+                  <Video className={`w-8 h-8 ${
+                    isDarkMode ? 'text-gray-600' : 'text-gray-400'
+                  }`} />
+                </div>
+                <p className={`text-sm font-medium mb-1 ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}>No files selected</p>
+                <p className={`text-xs ${
+                  isDarkMode ? 'text-gray-600' : 'text-gray-400'
+                }`}>Add files from Library</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-3">
             {assets.map((asset) => (
               <div
                 key={asset.id}
@@ -395,24 +442,8 @@ export const PreviewCanvas = ({
                 </div>
               </div>
             ))}
-            {assets.length === 0 && (
-              <div className="col-span-4 text-center py-12">
-                <div className={`inline-flex items-center justify-center w-16 h-16 rounded-xl mb-4 ${
-                  isDarkMode ? 'bg-[#2a2a2a]' : 'bg-gray-100'
-                }`}>
-                  <Video className={`w-8 h-8 ${
-                    isDarkMode ? 'text-gray-600' : 'text-gray-400'
-                  }`} />
-                </div>
-                <p className={`text-sm font-medium mb-1 ${
-                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                }`}>No files selected</p>
-                <p className={`text-xs ${
-                  isDarkMode ? 'text-gray-600' : 'text-gray-400'
-                }`}>Add files from Library</p>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Prompt Input Section */}

@@ -66,6 +66,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Generated-Command", "X-AI-Response", "X-Process-Logs"],  # Expose custom headers
 )
 
 # Configuration
@@ -128,8 +129,12 @@ def check_ffmpeg_installed():
 
 
 def sanitize_filename(filename: str) -> str:
-    """Sanitize filename by replacing spaces and hyphens with underscores"""
-    return filename.replace(" ", "_").replace("-", "_")
+    """Sanitize filename by replacing spaces, hyphens, and removing non-ASCII (including emoji)"""
+    # Replace spaces and hyphens with underscores
+    name = filename.replace(" ", "_").replace("-", "_")
+    # Remove non-ASCII characters (including emoji)
+    name = re.sub(r'[^\w\d_.]', '', name)
+    return name
 
 
 def get_file_info(file_path: Path) -> FileInfo:
@@ -239,7 +244,42 @@ Add audio to video/slideshow:
 ```bash
 ffmpeg ... -i music.mp3 -map "[vout]" -map N:a -shortest -c:a aac output.mp4
 ```
-Where N is the audio input index."""
+Where N is the audio input index.
+
+## VIDEO CONCATENATION
+When concatenating multiple videos:
+
+### All videos have audio:
+```bash
+ffmpeg -i video1.mp4 -i video2.mp4 -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v0];[1:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v1];[v0][0:a][v1][1:a]concat=n=2:v=1:a=1[vout][aout]" -map "[vout]" -map "[aout]" -c:v libx264 -c:a aac output.mp4
+```
+
+### Some videos have audio, some don't:
+Generate silent audio for videos without audio, then concat:
+```bash
+ffmpeg -i video_with_audio.mp4 -i video_no_audio.mp4 -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v0];[1:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v1];[1:v]anullsrc=channel_layout=stereo:sample_rate=48000[silent];[v0][0:a][v1][silent]concat=n=2:v=1:a=1[vout][aout]" -map "[vout]" -map "[aout]" -c:v libx264 -c:a aac output.mp4
+```
+
+### Concatenate videos + add separate audio track:
+For videos without audio OR to replace video audio with separate audio file:
+```bash
+ffmpeg -i v1.mp4 -i v2.mp4 -i music.mp3 -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v0];[1:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v1];[v0][v1]concat=n=2:v=1:a=0[vout]" -map "[vout]" -map 2:a -shortest -c:v libx264 -c:a aac output.mp4
+```
+Use concat=n=2:v=1:a=0 (no audio) when videos don't have audio or you want to use separate audio.
+
+### Speed changes + concatenation:
+To slow down a video (0.5x = half speed = 2x duration):
+```bash
+ffmpeg -i v1.mp4 -i v2_slow.mp4 -filter_complex "[1:v]setpts=2*PTS[v1_slow];[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v0];[v1_slow]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v1];[v0][v1]concat=n=2:v=1:a=0[vout]" -map "[vout]" -c:v libx264 output.mp4
+```
+IMPORTANT: Apply setpts BEFORE scale/pad. For audio: use atempo filter (range 0.5-2.0).
+
+CRITICAL CONCAT RULES:
+- Check asset list for audio_channels. If None, video has NO audio stream
+- Create output labels: concat outputs [vout][aout] or just [vout] if a=0
+- Always use -map "[vout]" for video output from filter_complex
+- Use -map "[aout]" if concat has audio (a=1), or -map N:a for separate audio file
+- Never reference non-existent audio streams (e.g., [1:a] when video 1 has no audio)"""
 
     user_message = f"""## AVAILABLE ASSETS
 
@@ -269,6 +309,8 @@ ERROR MESSAGE:
 Please analyze the error and generate a corrected command that addresses the specific issue.
 
 COMMON ERROR FIXES:
+- If you see "Stream specifier ':a' in filtergraph description matches no streams" → A video referenced for audio doesn't have an audio stream. Check the asset list audio_channels field. Use concat with a=0 or generate silent audio for videos without audio.
+- If you see "Output with label 'X' does not exist" → You referenced a label that wasn't created in filter_complex. Make sure concat outputs match your -map commands (e.g., concat outputs [vout][aout], so use -map "[vout]" -map "[aout]").
 - If you see "do not match the corresponding output link" → Images have different dimensions, use scale+pad approach
 - If you see "Padded dimensions cannot be smaller than input dimensions" → Fix pad calculation or use standard resolution (1920x1080 or 1080x1920)
 - If you see "Failed to configure input pad" → Check scale and pad syntax, ensure proper filter chain
@@ -452,16 +494,21 @@ async def process_video(
     4. Returns the generated video
     """
     
+    # Collect logs for frontend display
+    process_logs = []
+    
     if not check_ffmpeg_installed():
         raise HTTPException(status_code=500, detail="FFmpeg is not installed on the server")
     
     logger.info(f"Processing request: prompt='{prompt[:50]}...', files={len(files)}, temp={temperature}, top_p={top_p}")
+    process_logs.append(f"[INFO] Processing {len(files)} file(s) with prompt: '{prompt[:50]}...'")
     
     # Create unique session directory
     session_id = str(uuid.uuid4())
     session_dir = WORK_DIR / session_id
     session_dir.mkdir(exist_ok=True)
     logger.info(f"Created session directory: {session_dir}")
+    process_logs.append(f"[INFO] Created session: {session_id[:8]}")
     
     try:
         # Save uploaded files
@@ -469,6 +516,7 @@ async def process_video(
         files_info = []
         
         logger.info(f"Saving {len(files)} uploaded files...")
+        process_logs.append(f"[INFO] Uploading {len(files)} file(s)...")
         
         for upload_file in files:
             # Validate file extension
@@ -496,6 +544,7 @@ async def process_video(
             file_info = get_file_info(file_path)
             files_info.append(file_info)
             logger.info(f"File info: {file_info}")
+            process_logs.append(f"[OK] Loaded: {sanitized_name} ({file_info.type})")
         
         # Generate FFmpeg command
         max_retries = 3
@@ -503,6 +552,8 @@ async def process_video(
         command = None
         full_response = None
         last_error = None
+        
+        process_logs.append("[INFO] Analyzing media files...")
         
         while retry_count < max_retries:
             try:
@@ -513,6 +564,11 @@ async def process_video(
                     await asyncio.sleep(delay)
                 
                 logger.info(f"Generating command (attempt {retry_count + 1}/{max_retries})")
+                if retry_count == 0:
+                    process_logs.append("[INFO] Generating FFmpeg commands...")
+                else:
+                    process_logs.append(f"[INFO] Retrying command generation (attempt {retry_count + 1})...")
+                    
                 command, full_response = await generate_ffmpeg_command(
                     prompt=prompt,
                     files_info=files_info,
@@ -529,18 +585,20 @@ async def process_video(
                     )
                 
                 logger.info(f"Generated command: {command}")
+                process_logs.append("[OK] Generated FFmpeg command")
                 
                 # Log command for debugging
                 logger.info(f"Full command length: {len(command)} characters")
                 logger.debug(f"AI full response: {full_response}")
                 
                 # Execute command (run in thread pool to avoid blocking)
+                process_logs.append("[INFO] Processing video...")
                 success, output = await asyncio.to_thread(
                     execute_ffmpeg_command_sync, command, session_dir
                 )
                 
                 if success:
-                    logger.info("Video generated successfully")
+                    process_logs.append("[SUCCESS] Video generated successfully!")
                     break
                 
                 logger.warning(f"Command failed with error:\n{output}")
@@ -565,6 +623,11 @@ async def process_video(
         # Clean header values (remove newlines and special chars that are invalid in HTTP headers)
         safe_command = (command or "").replace('\n', ' ').replace('\r', '').replace('\t', ' ')
         safe_response = (full_response or "")[:500].replace('\n', ' ').replace('\r', '').replace('\t', ' ')
+        # Use a pipe separator for logs (can't use newlines in HTTP headers)
+        safe_logs = "||".join(process_logs)
+        
+        logger.info(f"Returning response with command length: {len(safe_command)}")
+        logger.info(f"Command preview: {safe_command[:100]}...")
         
         return FileResponse(
             output_file,
@@ -572,7 +635,8 @@ async def process_video(
             filename="output.mp4",
             headers={
                 "X-Generated-Command": safe_command[:1000],  # Limit header size
-                "X-AI-Response": safe_response[:500]
+                "X-AI-Response": safe_response[:500],
+                "X-Process-Logs": safe_logs[:2000]  # Limit to 2KB
             }
         )
         
