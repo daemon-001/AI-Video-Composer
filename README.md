@@ -50,9 +50,17 @@ AI Video Composer is a modern web application that leverages the power of Groq A
 - **FastAPI** - Modern Python web framework
 - **Uvicorn** - ASGI server
 - **Groq AI** - Advanced language model for command generation
-- **FFmpeg** - Media processing
+- **FFmpeg** - Media processing (bundled - no system installation required)
 - **MoviePy** - Python video editing
 - **Pillow** - Image processing
+
+## Prerequisites
+
+- **Python 3.8+** - For the backend server
+- **Node.js 16+** - For the frontend development
+- **FFmpeg** - Already bundled in the project (`ffmpeg-8.0.1-essentials_build` folder)
+
+> **Note**: FFmpeg is included in the project, so you don't need to install it separately on your system!
 
 ## Project Structure
 
