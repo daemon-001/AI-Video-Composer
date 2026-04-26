@@ -6,3 +6,19 @@ ffmpeg-8.0.1-essentials_build
 
 frontend/node_modules
 frontend/.env
+.env
+frontend/.env
+backend/.env
+
+frontend/logs
+frontend/*.log
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+frontend/lerna-debug.log*
+
+frontend/node_modules
+frontend/dist
+frontend/dist-ssr
+frontend/*.local

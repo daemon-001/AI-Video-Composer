@@ -21,7 +21,7 @@ export const ConnectionStatus = ({ onTestConnection }: ConnectionStatusProps) =>
       
       setDetails({
         ffmpeg: health.ffmpeg_installed,
-        gemini: health.gemini_configured,
+        gemini: health.groq_configured,
       });
 
       if (health.status === 'healthy') {

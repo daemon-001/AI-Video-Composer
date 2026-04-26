@@ -7,6 +7,7 @@ Get your API key from: https://console.groq.com/keys
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
 import os
@@ -84,6 +85,8 @@ WORK_DIR.mkdir(exist_ok=True)
 
 # Path to bundled FFmpeg executable
 BASE_DIR = Path(__file__).parent.parent  # Project root
+FRONTEND_DIST_DIR = BASE_DIR / "frontend" / "dist"
+FRONTEND_ASSETS_DIR = FRONTEND_DIST_DIR / "assets"
 FFMPEG_BIN = BASE_DIR / "ffmpeg-8.0.1-essentials_build" / "bin" / "ffmpeg.exe"
 FFPROBE_BIN = BASE_DIR / "ffmpeg-8.0.1-essentials_build" / "bin" / "ffprobe.exe"
 
@@ -393,11 +396,6 @@ FORMAT DETECTION KEYWORDS:
     # Handle multi-line commands (remove line continuations)
     if command:
         logger.info(f"Extracted command: {command[:200]}...")
-        # Remove backslash line continuations and join lines
-        command = command.replace('\\\n', ' ').replace('\\\r\n', ' ')
-        # Replace multiple spaces with single space
-        command = ' '.join(command.split())
-        logger.info(f"Processed command length: {len(command)} characters")
     else:
         logger.error("Failed to extract command from AI response")
         logger.error(f"Full response: {full_response}")
@@ -455,6 +453,10 @@ def execute_ffmpeg_command_sync(command: str, work_dir: Path) -> tuple[bool, str
 @app.get("/")
 async def root():
     """Root endpoint"""
+    index_file = FRONTEND_DIST_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+
     return {
         "name": "FFmpeg AI Composer API",
         "version": "2.0.0",
@@ -705,6 +707,10 @@ async def generate_command_only(
     finally:
         # Cleanup temporary files
         shutil.rmtree(session_dir, ignore_errors=True)
+
+
+if FRONTEND_ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_ASSETS_DIR), name="assets")
 
 
 if __name__ == "__main__":
