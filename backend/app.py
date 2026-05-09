@@ -221,13 +221,24 @@ async def generate_ffmpeg_command(
 - ONE command only, no chaining (no && or ;)
 - Use exact filenames from the asset list
 - Keep commands as simple as possible
-- Always use: -c:v libx264 -pix_fmt yuv420p -movflags +faststart
+- Always use: -y -c:v libx264 -pix_fmt yuv420p -movflags +faststart
+- Always add -y after ffmpeg to overwrite without prompting
+
+## STATIC IMAGE WITH AUDIO (NO ANIMATION)
+When creating a video from a single static image and an audio file (without zoom/pan):
+```bash
+ffmpeg -y -loop 1 -framerate 1 -i image.jpg -i audio.mp3 -c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p -c:a aac -shortest output.mp4
+```
+CRITICAL: Use `-framerate 1` and `-preset ultrafast` for static images to prevent encoding from hanging/taking too long!
 
 ## SLIDESHOW PATTERN (for multiple images)
 When combining images with different dimensions:
 ```bash
-ffmpeg -loop 1 -t 3 -i img1.jpg -loop 1 -t 3 -i img2.jpg -filter_complex "[0]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v0];[1]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v1];[v0][v1]concat=n=2:v=1:a=0" -c:v libx264 -pix_fmt yuv420p output.mp4
+ffmpeg -y -loop 1 -t 3 -i img1.jpg -loop 1 -t 3 -i img2.jpg -filter_complex "[0]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v0];[1]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v1];[v0][v1]concat=n=2:v=1:a=0" -c:v libx264 -pix_fmt yuv420p output.mp4
 ```
+CRITICAL CONCAT RULES FOR IMAGES:
+- When using `-loop 1`, you MUST include a duration limit (e.g., `-t 3`) for EACH image input before the `-i` flag.
+- If you omit `-t`, the first image will loop infinitely and the `concat` filter will hang forever!
 - Default: 1920x1080, 3 seconds per image
 - Vertical/portrait/TikTok: use 1080x1920
 - Always scale+pad to normalize dimensions
@@ -235,7 +246,7 @@ ffmpeg -loop 1 -t 3 -i img1.jpg -loop 1 -t 3 -i img2.jpg -filter_complex "[0]sca
 ## AUDIO WAVEFORM
 For full-width waveform visualization (waveform width = video width):
 ```bash
-ffmpeg -i audio.mp3 -i bg.png -filter_complex "[0:a]showwaves=s=1920x200:mode=line:colors=white[wave];[1]scale=1920:1080[bg];[bg][wave]overlay=0:(H-h)/2" -c:v libx264 -c:a aac output.mp4
+ffmpeg -y -i audio.mp3 -i bg.png -filter_complex "[0:a]showwaves=s=1920x200:mode=line:colors=white[wave];[1]scale=1920:1080[bg];[bg][wave]overlay=0:(H-h)/2" -c:v libx264 -c:a aac output.mp4
 ```
 CRITICAL:
 - showwaves size uses 'x' separator: s=WIDTHxHEIGHT (NOT s=WIDTH:HEIGHT)
@@ -245,7 +256,7 @@ CRITICAL:
 ## WITH BACKGROUND MUSIC
 Add audio to video/slideshow:
 ```bash
-ffmpeg ... -i music.mp3 -map "[vout]" -map N:a -shortest -c:a aac output.mp4
+ffmpeg -y ... -i music.mp3 -map "[vout]" -map N:a -shortest -c:a aac output.mp4
 ```
 Where N is the audio input index.
 
@@ -319,6 +330,8 @@ COMMON ERROR FIXES:
 - If you see "Failed to configure input pad" → Check scale and pad syntax, ensure proper filter chain
 - If you see "Invalid argument" in filters → Simplify filter_complex syntax and check parentheses
 - If you see "No option name near" with showwaves → Use 'x' for size: s=1920x200 (NOT s=1920:200)
+- If you see "Error applying option 'd' to filter 'xfade'" or "'t' to filter 'xfade'" → The xfade filter uses 'duration' (e.g., duration=1), NOT 'd' or 't'.
+- If you see "height not divisible by 2" or "width not divisible by 2" → Always ensure output dimensions are even numbers. Add a scale filter like scale=trunc(iw/2)*2:trunc(ih/2)*2 or scale=1920:1080.
 
 FORMAT DETECTION KEYWORDS:
 - "vertical", "portrait", "9:16", "TikTok", "Instagram Stories", "phone" → Use 1080x1920
@@ -421,11 +434,16 @@ def execute_ffmpeg_command_sync(command: str, work_dir: Path) -> tuple[bool, str
         # Replace 'ffmpeg' with path to bundled executable
         args[0] = get_ffmpeg_path()
         
+        # Ensure -y is included to prevent blocking on file overwrite prompts
+        if "-y" not in args:
+            args.insert(1, "-y")
+            
         # Execute FFmpeg command
         result = subprocess.run(
             args,
             cwd=work_dir,
             shell=False,  # Don't use shell to avoid arg escaping issues
+            stdin=subprocess.DEVNULL,  # Prevent blocking on stdin (e.g. waiting for 'y'/'q')
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
