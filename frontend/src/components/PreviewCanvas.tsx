@@ -253,27 +253,23 @@ export const PreviewCanvas = ({
   });
 
   // Handle drag and drop from library
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    try {
-      const data = e.dataTransfer.getData('application/json');
-      if (data && onAddAsset) {
+  const handleCustomDrop = (e: React.DragEvent) => {
+    const data = e.dataTransfer.getData('application/json');
+    if (data) {
+      try {
+        e.preventDefault();
+        e.stopPropagation();
         const asset = JSON.parse(data);
-        // Check if asset already exists in compose section
-        const exists = assets.some((a) => a.id === asset.id);
-        if (!exists) {
-          onAddAsset(asset);
+        if (onAddAsset) {
+          // Check if asset already exists in compose section
+          const exists = assets.some((a) => a.id === asset.id);
+          if (!exists) {
+            onAddAsset(asset);
+          }
         }
+      } catch (error) {
+        console.error('Failed to parse dropped asset:', error);
       }
-    } catch (error) {
-      console.error('Failed to parse dropped asset:', error);
     }
   };
 
@@ -357,12 +353,9 @@ export const PreviewCanvas = ({
 
         {/* File Grid */}
         <div 
-          {...getRootProps()}
-          onDragOver={handleDragOver}
-          onDrop={(e) => {
-            // First try to handle as library asset
-            handleDrop(e);
-          }}
+          {...getRootProps({
+            onDrop: handleCustomDrop
+          })}
           className={`flex-1 overflow-y-auto p-4 ${!isDarkMode ? 'light-scrollbar' : ''}`}
         >
           <input {...getInputProps()} />
@@ -475,7 +468,7 @@ export const PreviewCanvas = ({
             <button
               onClick={handleSendPrompt}
               disabled={!prompt.trim() || isProcessing}
-              className="px-5 py-3 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 shadow-lg flex items-center gap-2"
+              className="px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 shadow-lg flex items-center gap-2"
             >
               {isProcessing ? (
                 <>

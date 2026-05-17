@@ -2,40 +2,6 @@
 
 Here is a comprehensive list of simple, direct prompts for common FFmpeg tasks, categorized by the types of files required to execute them. They are ordered from simplest to most complex.
 
-### Image-Only Tasks
-**Required Files:** 1 Image File
-
-**Format Conversion**
-> "Convert this image to PNG format."
-
-**Resizing**
-> "Resize this image to exactly 1920x1080 pixels, stretching it if necessary."
-
-**Cropping**
-> "Crop this image to a 1:1 square aspect ratio from the center."
-
-**Image Compression**
-> "Compress this image by reducing its quality to 70% to save disk space, and convert it to WebP format."
-
----
-
-### Audio-Only Tasks
-**Required Files:** 1 Audio File
-
-**Format Conversion**
-> "Convert this audio file to WAV format."
-
-**Volume Adjustment**
-> "Increase the volume of this audio track by 150%." (or "Decrease the volume by half.")
-
-**Trimming Audio**
-> "Cut this audio file to keep only the first 15 seconds."
-
-**Adding Fade In/Out**
-> "Add a 3-second audio fade-in at the beginning and a 3-second fade-out at the end of this track."
-
----
-
 ### Video-Only Tasks
 **Required Files:** 1 Video File
 
@@ -44,12 +10,6 @@ Here is a comprehensive list of simple, direct prompts for common FFmpeg tasks, 
 
 **Muting (Removing Audio)**
 > "Remove all audio tracks from this video so it is completely silent."
-
-**Extracting a Frame**
-> "Extract the frame exactly at the 5-second mark and save it as a high-quality JPG image."
-
-**Extracting Audio from Video**
-> "Extract the audio track from this video and save it as an MP3 file."
 
 **Resizing / Downscaling**
 > "Resize this video to 720p resolution (1280x720)."
@@ -109,9 +69,6 @@ Here is a comprehensive list of simple, direct prompts for common FFmpeg tasks, 
 
 **Basic Slideshow / Timelapse**
 > "Create a simple video slideshow from these images. Show each image for exactly 1 second with no transitions between them. Make the video 30 frames per second."
-
-**Creating a GIF**
-> "Create an animated GIF looping through all these images, showing each for 0.5 seconds."
 
 **Animated Slideshow (Without Audio)**
 > "Generate a smooth, animated slideshow without any sound. Apply a 'Ken Burns' effect (slow zoom and pan) to each image. Display each image for exactly 4 seconds, and use a 1-second dissolve transition between each photo. Resize and crop the images to fill a 1920x1080 canvas."

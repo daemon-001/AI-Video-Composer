@@ -212,131 +212,69 @@ async def generate_ffmpeg_command(
     
     system_prompt = """You are an expert FFmpeg engineer. Generate precise, working FFmpeg commands.
 
-## OUTPUT FORMAT
-1. Brief analysis (2-3 sentences max)
+## FORMAT
+1. Brief analysis (1-2 sentences)
 2. Single FFmpeg command in a ```bash code block
 3. Output file must be "output.mp4"
 
-## CORE RULES
-- ONE command only, no chaining (no && or ;)
-- Use exact filenames from the asset list
-- Keep commands as simple as possible
-- Always use: -y -c:v libx264 -pix_fmt yuv420p -movflags +faststart
-- Always add -y after ffmpeg to overwrite without prompting
+## RULES
+- ONE command only, no chaining (&&, ;)
+- Exact filenames from asset list
+- Use: -y -c:v libx264 -pix_fmt yuv420p -movflags +faststart
+- ALWAYS use `-map 0:v:0` (not `-map 0:v`) for video to avoid cover art errors!
 
-## STATIC IMAGE WITH AUDIO (NO ANIMATION)
-When creating a video from a single static image and an audio file (without zoom/pan):
-```bash
-ffmpeg -y -loop 1 -framerate 1 -i image.jpg -i audio.mp3 -c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p -c:a aac -shortest output.mp4
-```
-CRITICAL: Use `-framerate 1` and `-preset ultrafast` for static images to prevent encoding from hanging/taking too long!
+## PATTERNS
+1. Static Image + Audio:
+`ffmpeg -y -loop 1 -framerate 1 -i img.jpg -i aud.mp3 -c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p -c:a aac -shortest output.mp4`
 
-## SLIDESHOW PATTERN (for multiple images)
-When combining images with different dimensions:
-```bash
-ffmpeg -y -loop 1 -t 3 -i img1.jpg -loop 1 -t 3 -i img2.jpg -filter_complex "[0]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v0];[1]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v1];[v0][v1]concat=n=2:v=1:a=0" -c:v libx264 -pix_fmt yuv420p output.mp4
-```
-CRITICAL CONCAT RULES FOR IMAGES:
-- When using `-loop 1`, you MUST include a duration limit (e.g., `-t 3`) for EACH image input before the `-i` flag.
-- If you omit `-t`, the first image will loop infinitely and the `concat` filter will hang forever!
-- Default: 1920x1080, 3 seconds per image
-- Vertical/portrait/TikTok: use 1080x1920
-- Always scale+pad to normalize dimensions
+2. Slideshow (CRITICAL: use `-t` before EACH `-i` img to avoid infinite loop):
+`ffmpeg -y -loop 1 -t 3 -i 1.jpg -loop 1 -t 3 -i 2.jpg -filter_complex "[0]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v0];[1]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v1];[v0][v1]concat=n=2:v=1:a=0" -c:v libx264 -pix_fmt yuv420p output.mp4`
 
-## AUDIO WAVEFORM
-For full-width waveform visualization (waveform width = video width):
-```bash
-ffmpeg -y -i audio.mp3 -i bg.png -filter_complex "[0:a]showwaves=s=1920x200:mode=line:colors=white[wave];[1]scale=1920:1080[bg];[bg][wave]overlay=0:(H-h)/2" -c:v libx264 -c:a aac output.mp4
-```
-CRITICAL:
-- showwaves size uses 'x' separator: s=WIDTHxHEIGHT (NOT s=WIDTH:HEIGHT)
-- For full-width: set waveform width = video width (e.g., s=1920x200 for 1920px wide video)
-- overlay=0:(H-h)/2 positions at x=0 (full width) and centers vertically
+3. Audio Waveform (s=WxH uses 'x', not ':'):
+`ffmpeg -y -i aud.mp3 -i bg.png -filter_complex "[0:a]showwaves=s=1920x200:mode=line:colors=white[wave];[1]scale=1920:1080[bg];[bg][wave]overlay=0:(H-h)/2" -c:v libx264 -c:a aac output.mp4`
 
-## WITH BACKGROUND MUSIC
-Add audio to video/slideshow:
-```bash
-ffmpeg -y ... -i music.mp3 -map "[vout]" -map N:a -shortest -c:a aac output.mp4
-```
-Where N is the audio input index.
+4. Add Background Music:
+`... -i music.mp3 -map "[vout]" -map N:a -shortest -c:a aac output.mp4`
 
-## VIDEO CONCATENATION
-When concatenating multiple videos:
+5. Concat Videos (all have audio):
+`... -filter_complex "[0:v]scale=...[v0];[1:v]scale=...[v1];[v0][0:a][v1][1:a]concat=n=2:v=1:a=1[vout][aout]" -map "[vout]" -map "[aout]"`
 
-### All videos have audio:
-```bash
-ffmpeg -i video1.mp4 -i video2.mp4 -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v0];[1:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v1];[v0][0:a][v1][1:a]concat=n=2:v=1:a=1[vout][aout]" -map "[vout]" -map "[aout]" -c:v libx264 -c:a aac output.mp4
-```
+6. Concat (mixed audio): Generate `anullsrc=channel_layout=stereo:sample_rate=48000[silent]`, use in concat `a=1`.
 
-### Some videos have audio, some don't:
-Generate silent audio for videos without audio, then concat:
-```bash
-ffmpeg -i video_with_audio.mp4 -i video_no_audio.mp4 -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v0];[1:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v1];[1:v]anullsrc=channel_layout=stereo:sample_rate=48000[silent];[v0][0:a][v1][silent]concat=n=2:v=1:a=1[vout][aout]" -map "[vout]" -map "[aout]" -c:v libx264 -c:a aac output.mp4
-```
+7. Concat + replace audio: Use concat `a=0[vout]`, then `-map "[vout]" -map N:a`.
 
-### Concatenate videos + add separate audio track:
-For videos without audio OR to replace video audio with separate audio file:
-```bash
-ffmpeg -i v1.mp4 -i v2.mp4 -i music.mp3 -filter_complex "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v0];[1:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v1];[v0][v1]concat=n=2:v=1:a=0[vout]" -map "[vout]" -map 2:a -shortest -c:v libx264 -c:a aac output.mp4
-```
-Use concat=n=2:v=1:a=0 (no audio) when videos don't have audio or you want to use separate audio.
+8. Speed changes: Apply `setpts` BEFORE scale/pad.
 
-### Speed changes + concatenation:
-To slow down a video (0.5x = half speed = 2x duration):
-```bash
-ffmpeg -i v1.mp4 -i v2_slow.mp4 -filter_complex "[1:v]setpts=2*PTS[v1_slow];[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v0];[v1_slow]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v1];[v0][v1]concat=n=2:v=1:a=0[vout]" -map "[vout]" -c:v libx264 output.mp4
-```
-IMPORTANT: Apply setpts BEFORE scale/pad. For audio: use atempo filter (range 0.5-2.0).
+CRITICAL CONCAT RULES: Check `audio_channels` in assets. If None, video has NO audio. Match concat outputs to `-map`. Never reference missing audio streams.
 
-CRITICAL CONCAT RULES:
-- Check asset list for audio_channels. If None, video has NO audio stream
-- Create output labels: concat outputs [vout][aout] or just [vout] if a=0
-- Always use -map "[vout]" for video output from filter_complex
-- Use -map "[aout]" if concat has audio (a=1), or -map N:a for separate audio file
-- Never reference non-existent audio streams (e.g., [1:a] when video 1 has no audio)"""
+## RESOLUTIONS
+- vertical/TikTok/9:16: 1080x1920
+- horizontal/16:9: 1920x1080
+- square/1:1: 1080x1080"""
 
-    user_message = f"""## AVAILABLE ASSETS
-
+    user_message = f"""ASSETS:
 {files_table}
 
-## TASK
-{prompt}
-
-## REQUIREMENTS
-- Output format: MP4 video saved as "output.mp4"
-- Generate a single, complete FFmpeg command
-- Command must work with the exact filenames listed above
-
-Think briefly about the approach, then output the FFmpeg command in a ```bash code block."""
+TASK: {prompt}
+Output MP4 as "output.mp4". Command must work with exact filenames."""
 
     if previous_error and previous_command:
         user_message += f"""
 
-IMPORTANT: This is a retry attempt. The previous command failed with the following error:
+RETRY! Previous failed:
+CMD: {previous_command}
+ERR: {previous_error}
 
-PREVIOUS COMMAND (FAILED):
-{previous_command}
-
-ERROR MESSAGE:
-{previous_error}
-
-Please analyze the error and generate a corrected command that addresses the specific issue.
-
-COMMON ERROR FIXES:
-- If you see "Stream specifier ':a' in filtergraph description matches no streams" → A video referenced for audio doesn't have an audio stream. Check the asset list audio_channels field. Use concat with a=0 or generate silent audio for videos without audio.
-- If you see "Output with label 'X' does not exist" → You referenced a label that wasn't created in filter_complex. Make sure concat outputs match your -map commands (e.g., concat outputs [vout][aout], so use -map "[vout]" -map "[aout]").
-- If you see "do not match the corresponding output link" → Images have different dimensions, use scale+pad approach
-- If you see "Padded dimensions cannot be smaller than input dimensions" → Fix pad calculation or use standard resolution (1920x1080 or 1080x1920)
-- If you see "Failed to configure input pad" → Check scale and pad syntax, ensure proper filter chain
-- If you see "Invalid argument" in filters → Simplify filter_complex syntax and check parentheses
-- If you see "No option name near" with showwaves → Use 'x' for size: s=1920x200 (NOT s=1920:200)
-- If you see "Error applying option 'd' to filter 'xfade'" or "'t' to filter 'xfade'" → The xfade filter uses 'duration' (e.g., duration=1), NOT 'd' or 't'.
-- If you see "height not divisible by 2" or "width not divisible by 2" → Always ensure output dimensions are even numbers. Add a scale filter like scale=trunc(iw/2)*2:trunc(ih/2)*2 or scale=1920:1080.
-
-FORMAT DETECTION KEYWORDS:
-- "vertical", "portrait", "9:16", "TikTok", "Instagram Stories", "phone" → Use 1080x1920
-- "horizontal", "landscape", "16:9", "YouTube", "TV" → Use 1920x1080 (default)
-- "square", "1:1", "Instagram post" → Use 1080x1080"""
+FIX GUIDE:
+- "matches no streams": missing audio. Use concat a=0 or anullsrc.
+- "incorrect codec parameters": mapped cover art. Use `-map 0:v:0`.
+- "Output with label 'X' does not exist": mismatch between filter and -map.
+- "do not match the corresponding output link": dimension mismatch, use scale+pad.
+- "Padded dimensions cannot be smaller": fix pad calc or use 1920x1080.
+- "Invalid argument": check filter syntax.
+- "No option name near": in showwaves, use s=1920x200 (not :).
+- "Error applying option... xfade": use 'duration' (not 'd' or 't').
+- "divisible by 2": add scale=trunc(iw/2)*2:trunc(ih/2)*2."""
 
     user_message += "\n\nYOUR RESPONSE:"
     
